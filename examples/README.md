@@ -1,7 +1,7 @@
-# Embedded Raptor Examples
+# Olingo Examples
 
 This directory contains practical examples demonstrating different use cases for
-the Embedded Raptor embedding database.
+the Olingo embedding database.
 
 ## Running Examples
 

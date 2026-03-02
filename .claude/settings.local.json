@@ -32,7 +32,9 @@
       "Bash(git stash:*)",
       "Bash(git checkout:*)",
       "Bash(git restore:*)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "WebFetch(domain:registry.npmjs.org)",
+      "Bash(find /Users/artmann/code/embedded-raptor/.github -type f -name \"*.yml\" -o -name \"*.yaml\" 2>/dev/null | head -20)"
     ]
   }
 }

@@ -1,6 +1,6 @@
-# Contributing to Raptor
+# Contributing to Olingo
 
-Thank you for your interest in contributing to Raptor! This guide will help you
+Thank you for your interest in contributing to Olingo! This guide will help you
 get started with development.
 
 ## Getting Started
@@ -13,8 +13,8 @@ get started with development.
 ### Clone and Install
 
 ```bash
-git clone https://github.com/artmann/raptor.git
-cd raptor
+git clone https://github.com/artmann/olingo.git
+cd olingo
 bun install
 ```
 
@@ -99,9 +99,9 @@ Optimized data structure for top-N search results:
 
 Command-line interface with three commands:
 
-- `raptor store <key> <text>` - Store new embedding
-- `raptor get <key>` - Retrieve by key
-- `raptor search <query>` - Semantic search
+- `olingo store <key> <text>` - Store new embedding
+- `olingo get <key>` - Retrieve by key
+- `olingo search <query>` - Semantic search
 
 ### Data Flow
 
@@ -126,7 +126,7 @@ Key → Read File (Chunked, Reverse) → Find First Match → Return Entry
 
 ## Storage Format
 
-Raptor uses a compact binary format (.raptor files):
+Olingo uses a compact binary format (.raptor files):
 
 ### Header (16 bytes)
 
@@ -251,7 +251,7 @@ All jobs must pass for CI to succeed.
 
 ## Embedding Model
 
-Raptor uses [FastEmbed](https://github.com/qdrant/fastembed) with the
+Olingo uses [FastEmbed](https://github.com/qdrant/fastembed) with the
 **BGE-Base-EN** model:
 
 - **Model**: BAAI/bge-base-en-v1.5
@@ -316,10 +316,10 @@ rm -rf local_cache/
 
 ## Need Help?
 
-- **Issues**: [GitHub Issues](https://github.com/artmann/raptor/issues)
+- **Issues**: [GitHub Issues](https://github.com/artmann/olingo/issues)
 - **Documentation**: See [CLAUDE.md](CLAUDE.md) for detailed technical docs
 
 ## License
 
-By contributing to Raptor, you agree that your contributions will be licensed
+By contributing to Olingo, you agree that your contributions will be licensed
 under the MIT License.

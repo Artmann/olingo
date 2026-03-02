@@ -13,9 +13,9 @@ export const search = command(
     help: {
       description: 'Search for similar embeddings using a query',
       examples: [
-        'raptor search "artificial intelligence"',
-        'raptor search -l 5 -m 0.7 "machine learning"',
-        'raptor search -s ./my-db.raptor "find similar docs"'
+        'olingo search "artificial intelligence"',
+        'olingo search -l 5 -m 0.7 "machine learning"',
+        'olingo search -s ./my-db.raptor "find similar docs"'
       ]
     }
   },

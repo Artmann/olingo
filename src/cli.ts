@@ -17,7 +17,7 @@ function main(): void {
 
   cli(
     {
-      name: 'raptor',
+      name: 'olingo',
       version: packageJson.version,
       description:
         'An embedding database CLI for storing and searching text indexes',

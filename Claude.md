@@ -1,8 +1,8 @@
-# Claude.md - Embedded Raptor Project Guide
+# Claude.md - Olingo Project Guide
 
 ## Project Overview
 
-**Embedded Raptor** is a lightweight embedding database built for the Bun
+**Olingo** is a lightweight embedding database built for the Bun
 runtime that stores text embeddings in an append-only JSONL file format. It
 provides semantic search capabilities using cosine similarity with the
 BGE-Base-EN embedding model (768 dimensions).
@@ -60,9 +60,9 @@ Optimized data structure for top-N search results:
 
 Command-line interface with three commands:
 
-- `raptor store <key> <text>` - Store new embedding
-- `raptor get <key>` - Retrieve by key
-- `raptor search <query>` - Semantic search
+- `olingo store <key> <text>` - Store new embedding
+- `olingo get <key>` - Retrieve by key
+- `olingo search <query>` - Semantic search
 
 ### Data Flow
 
@@ -271,7 +271,7 @@ Each line is a JSON object:
 ### Programmatic Usage
 
 ```typescript
-import { EmbeddingEngine } from 'embedded-raptor'
+import { EmbeddingEngine } from 'olingo'
 
 const engine = new EmbeddingEngine({
   storePath: './my-database.jsonl'
@@ -293,16 +293,16 @@ const entry = await engine.get('doc1')
 
 ```bash
 # Store
-raptor store doc1 "Machine learning is awesome"
+olingo store doc1 "Machine learning is awesome"
 
 # Search (max 5 results, min 0.7 similarity)
-raptor search "AI and ML" --limit 5 --minSimilarity 0.7
+olingo search "AI and ML" --limit 5 --minSimilarity 0.7
 
 # Get
-raptor get doc1
+olingo get doc1
 
 # Custom database path
-raptor store doc1 "text" --storePath ./custom.jsonl
+olingo store doc1 "text" --storePath ./custom.jsonl
 ```
 
 ## Performance Considerations

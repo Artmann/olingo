@@ -1,6 +1,6 @@
-# Raptor Benchmark Suite
+# Olingo Benchmark Suite
 
-Performance benchmarks for the Raptor embedding database.
+Performance benchmarks for the Olingo embedding database.
 
 ## Quick Start
 

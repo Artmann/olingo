@@ -23,7 +23,7 @@ export const walCmd = command(
     },
     help: {
       description: 'Display WAL entries in human-readable format',
-      examples: ['raptor wal', 'raptor wal -s ./my-db.raptor']
+      examples: ['olingo wal', 'olingo wal -s ./my-db.raptor']
     }
   },
   async (argv) => {

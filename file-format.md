@@ -1,8 +1,8 @@
-# Embedded Raptor Database File Format (v2)
+# Olingo Database File Format (v2)
 
 ## Overview
 
-This document describes the WAL-based binary file format for the Embedded Raptor
+This document describes the WAL-based binary file format for the Olingo
 database. The format provides durability through write-ahead logging and
 supports insert, update, and delete operations.
 

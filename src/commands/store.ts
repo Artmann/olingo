@@ -12,8 +12,8 @@ export const store = command(
     help: {
       description: 'Store a text embedding with a key',
       examples: [
-        'raptor store doc1 "Machine learning is awesome"',
-        'raptor store -s ./my-db.raptor mykey "Some text to embed"'
+        'olingo store doc1 "Machine learning is awesome"',
+        'olingo store -s ./my-db.raptor mykey "Some text to embed"'
       ]
     }
   },

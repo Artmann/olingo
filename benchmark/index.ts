@@ -104,7 +104,7 @@ async function createDatabase(
 async function main(): Promise<void> {
   const options = parseArgs()
 
-  printModernSection('Raptor Benchmark Suite')
+  printModernSection('Olingo Benchmark Suite')
   console.log(`Mode: ${options.quick ? 'Quick' : 'Comprehensive'}`)
   console.log(`Store sizes: ${options.storeSizes.join(', ')}`)
   console.log(`Read sizes: ${options.readSizes.join(', ')}`)

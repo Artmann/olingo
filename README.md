@@ -1,21 +1,21 @@
-# Embedded Raptor
+# Olingo
 
-[![CI](https://img.shields.io/github/actions/workflow/status/artmann/embedded-raptor/ci.yml?branch=main&label=CI&logo=github)](https://github.com/artmann/embedded-raptor/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/embedded-raptor.svg?logo=npm)](https://www.npmjs.com/package/embedded-raptor)
-[![npm downloads](https://img.shields.io/npm/dm/embedded-raptor.svg)](https://www.npmjs.com/package/embedded-raptor)
+[![CI](https://img.shields.io/github/actions/workflow/status/artmann/olingo/ci.yml?branch=main&label=CI&logo=github)](https://github.com/artmann/olingo/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/olingo.svg?logo=npm)](https://www.npmjs.com/package/olingo)
+[![npm downloads](https://img.shields.io/npm/dm/olingo.svg)](https://www.npmjs.com/package/olingo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
 
 > A lightweight semantic search database with text embeddings for Node.js and
 > Bun
 
-Embedded Raptor lets you build semantic search into your applications with just
+Olingo lets you build semantic search into your applications with just
 a few lines of code. Store text, search by meaning, and find similar
 content—perfect for RAG systems, chatbots, and recommendation engines.
 
-## What is Embedded Raptor?
+## What is Olingo?
 
-Embedded Raptor is an embedding database that automatically converts text into
+Olingo is an embedding database that automatically converts text into
 vector embeddings and stores them in an efficient binary format. Instead of
 searching by exact keywords, you can search by semantic similarity—finding
 documents that mean the same thing, even if they use different words.
@@ -23,7 +23,7 @@ documents that mean the same thing, even if they use different words.
 **Example:** Search for "how to reset password" and find results like "forgot my
 login credentials" or "change account password".
 
-## Why Embedded Raptor?
+## Why Olingo?
 
 - **Simple API** - No complex setup, just store and search
 - **Semantic Search** - Find content by meaning, not just keywords
@@ -44,10 +44,10 @@ login credentials" or "change account password".
 
 ```bash
 # Using npm
-npm install embedded-raptor
+npm install olingo
 
 # Using bun
-bun add embedded-raptor
+bun add olingo
 ```
 
 ## Quick Start
@@ -55,7 +55,7 @@ bun add embedded-raptor
 ### Programmatic API
 
 ```typescript
-import { EmbeddingEngine } from 'embedded-raptor'
+import { EmbeddingEngine } from 'olingo'
 
 const engine = new EmbeddingEngine({
   storePath: './my-database.raptor'
@@ -78,14 +78,14 @@ console.log(results[0].similarity) // 0.87 - high similarity score
 
 ```bash
 # Store documents
-raptor store doc1 "How to reset your password"
-raptor store doc2 "Machine learning basics"
+olingo store doc1 "How to reset your password"
+olingo store doc2 "Machine learning basics"
 
 # Search by meaning
-raptor search "forgot my password" --limit 5
+olingo search "forgot my password" --limit 5
 
 # Retrieve by key
-raptor get doc1
+olingo get doc1
 ```
 
 ## Examples
@@ -177,13 +177,13 @@ if (entry) {
 
 ```bash
 # Store text
-raptor store <key> <text> [--storePath path]
+olingo store <key> <text> [--storePath path]
 
 # Search for similar text
-raptor search <query> [--limit 10] [--minSimilarity 0] [--storePath path]
+olingo search <query> [--limit 10] [--minSimilarity 0] [--storePath path]
 
 # Get by key
-raptor get <key> [--storePath path]
+olingo get <key> [--storePath path]
 ```
 
 ### Options
@@ -196,27 +196,27 @@ raptor get <key> [--storePath path]
 
 ```bash
 # Store documents
-raptor store doc1 "The quick brown fox jumps over the lazy dog"
-raptor store doc2 "Machine learning is a subset of artificial intelligence"
-raptor store doc3 "Bun is a fast JavaScript runtime"
+olingo store doc1 "The quick brown fox jumps over the lazy dog"
+olingo store doc2 "Machine learning is a subset of artificial intelligence"
+olingo store doc3 "Bun is a fast JavaScript runtime"
 
 # Search with default settings
-raptor search "artificial intelligence"
+olingo search "artificial intelligence"
 
 # Search with custom limit and threshold
-raptor search "AI and ML" --limit 3 --minSimilarity 0.7
+olingo search "AI and ML" --limit 3 --minSimilarity 0.7
 
 # Use custom database path
-raptor store key1 "Some text" --storePath ./data/custom.raptor
+olingo store key1 "Some text" --storePath ./data/custom.raptor
 ```
 
 ## How It Works
 
-1. **Text → Embeddings**: Embedded Raptor uses the BGE-Base-EN model to convert
+1. **Text → Embeddings**: Olingo uses the BGE-Base-EN model to convert
    text into 768-dimensional vector embeddings
 2. **Storage**: Embeddings are stored in an efficient binary format (.raptor
    files)
-3. **Search**: When you search, Embedded Raptor compares your query embedding
+3. **Search**: When you search, Olingo compares your query embedding
    against all stored embeddings using cosine similarity
 4. **Results**: Returns the most similar results ranked by similarity score
 

@@ -1,16 +1,16 @@
 {
-  "name": "embedded-raptor",
+  "name": "olingo",
   "version": "2.2.0",
   "description": "Lightweight semantic search database with text embeddings for Node.js and Bun",
   "author": "Christoffer Artmann <artgaard@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/artmann/embedded-raptor.git"
+    "url": "https://github.com/artmann/olingo.git"
   },
-  "homepage": "https://github.com/artmann/embedded-raptor#readme",
+  "homepage": "https://github.com/artmann/olingo#readme",
   "bugs": {
-    "url": "https://github.com/artmann/embedded-raptor/issues"
+    "url": "https://github.com/artmann/olingo/issues"
   },
   "keywords": [
     "embeddings",
@@ -39,7 +39,7 @@
     "dist"
   ],
   "bin": {
-    "raptor": "./dist/cli.mjs"
+    "olingo": "./dist/cli.mjs"
   },
   "scripts": {
     "benchmark": "bun run benchmark/index.ts",
