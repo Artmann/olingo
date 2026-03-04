@@ -25,6 +25,10 @@ export class HnswIndex {
     return this.nodes.has(key)
   }
 
+  getVector(key: string): number[] | null {
+    return this.nodes.get(key)?.vector ?? null
+  }
+
   insert(key: string, vector: number[]): void {
     invariant(key, 'Key must be a non-empty string')
     invariant(

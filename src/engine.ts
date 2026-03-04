@@ -14,7 +14,7 @@ import {
   opType,
   ReadOnlyError
 } from './storage-engine'
-import { CandidateSet } from './candidate-set'
+import { HnswIndex } from './storage-engine/hnsw-index'
 import { LRUCache } from './lru-cache'
 import type { EmbeddingEntry, EngineOptions, SearchResult } from './types'
 
@@ -81,8 +81,8 @@ export class EmbeddingEngine {
   private embeddingContext?: LlamaEmbeddingContext
   private initPromise?: Promise<void>
   private storageInitPromise?: Promise<StorageEngine>
-  // In-memory embedding cache for faster search
-  private embeddingCache: Map<string, Float32Array> | null = null
+  // HNSW index for approximate nearest-neighbour search
+  private hnswIndex: HnswIndex | null = null
   // LRU cache for text-to-embedding lookups (avoids regenerating embeddings for repeated text)
   private textEmbeddingCache: LRUCache<string, Float32Array> | null = null
 
@@ -130,34 +130,24 @@ export class EmbeddingEngine {
   }
 
   /**
-   * Loads all embeddings into memory for faster search
-   * Called lazily on first search
-   * @returns The embedding cache Map
+   * Lazily builds HNSW index from storage on first call
    */
-  private async ensureEmbeddingCache(
-    storage: StorageEngine
-  ): Promise<Map<string, Float32Array>> {
-    if (this.embeddingCache !== null) {
-      return this.embeddingCache
+  private async ensureHnswIndex(storage: StorageEngine): Promise<HnswIndex> {
+    if (this.hnswIndex !== null) {
+      return this.hnswIndex
     }
 
-    this.embeddingCache = new Map()
+    const index = new HnswIndex()
 
     for (const [key, location] of storage.locations()) {
       const embedding = await storage.readEmbeddingAt(location.offset)
       if (embedding) {
-        this.embeddingCache.set(key, embedding)
+        index.insert(key, Array.from(embedding))
       }
     }
 
-    return this.embeddingCache
-  }
-
-  /**
-   * Invalidates the embedding cache, forcing reload on next search
-   */
-  private invalidateEmbeddingCache(): void {
-    this.embeddingCache = null
+    this.hnswIndex = index
+    return this.hnswIndex
   }
 
   /**
@@ -401,33 +391,29 @@ export class EmbeddingEngine {
     }
 
     const queryEmbedding = await this.generateEmbeddingFloat32(query)
-    const candidateSet = new CandidateSet(limit)
+    const hnswIndex = await this.ensureHnswIndex(storage)
 
-    // Load embeddings into cache if not already cached
-    const cache = await this.ensureEmbeddingCache(storage)
+    // Overscan to handle minSimilarity filtering post-retrieval
+    const overscan = Math.max(limit * 3, limit + 20)
+    const candidateKeys = hnswIndex.search(Array.from(queryEmbedding), overscan)
 
-    // Iterate through all entries using cached embeddings
-    for (const key of storage.keys()) {
-      const embedding = cache.get(key)
-      if (!embedding) {
+    const results: SearchResult[] = []
+    for (const key of candidateKeys) {
+      const vec = hnswIndex.getVector(key)
+      if (!vec) {
         continue
       }
-
-      const similarity = this.cosineSimilarity(queryEmbedding, embedding)
-
-      if (similarity < minSimilarity) {
-        continue
+      const similarity = this.cosineSimilarity(
+        queryEmbedding,
+        new Float32Array(vec)
+      )
+      if (similarity >= minSimilarity) {
+        results.push({ key, similarity })
       }
-
-      candidateSet.add(key, similarity)
     }
 
-    const results: SearchResult[] = candidateSet.getEntries().map((entry) => ({
-      key: entry.key,
-      similarity: entry.value
-    }))
-
-    return results
+    results.sort((a, b) => b.similarity - a.similarity)
+    return results.slice(0, limit)
   }
 
   /**
@@ -449,9 +435,9 @@ export class EmbeddingEngine {
     const op = storage.hasKey(key) ? opType.update : opType.insert
     await storage.writeRecord(key, embedding, op)
 
-    // Update cache if it exists (avoid invalidating entire cache)
-    if (this.embeddingCache !== null) {
-      this.embeddingCache.set(key, embedding)
+    // Update HNSW index if it exists
+    if (this.hnswIndex !== null) {
+      this.hnswIndex.insert(key, Array.from(embedding))
     }
   }
 
@@ -512,10 +498,10 @@ export class EmbeddingEngine {
 
     await Promise.all(writePromises)
 
-    // Update cache after all writes complete
-    if (this.embeddingCache !== null) {
+    // Update HNSW index after all writes complete
+    if (this.hnswIndex !== null) {
       for (let i = 0; i < items.length; i++) {
-        this.embeddingCache.set(items[i].key, embeddingsList[i])
+        this.hnswIndex.insert(items[i].key, Array.from(embeddingsList[i]))
       }
     }
   }
@@ -535,9 +521,9 @@ export class EmbeddingEngine {
     const storage = await this.ensureStorageEngine()
     const deleted = await storage.deleteRecord(key)
 
-    // Remove from cache if it exists
-    if (deleted && this.embeddingCache !== null) {
-      this.embeddingCache.delete(key)
+    // Remove from HNSW index if it exists
+    if (deleted && this.hnswIndex !== null) {
+      this.hnswIndex.delete(key)
     }
 
     return deleted
@@ -644,8 +630,8 @@ export class EmbeddingEngine {
     // Remove from shared exit handler tracking
     enginesWithNativeResources.delete(this)
 
-    // Clear embedding cache
-    this.embeddingCache = null
+    // Clear HNSW index
+    this.hnswIndex = null
 
     // Clear text embedding cache
     if (this.textEmbeddingCache) {
