@@ -43,6 +43,7 @@
   },
   "scripts": {
     "benchmark": "bun run benchmark/index.ts",
+    "benchmark:hnsw": "bun run benchmark/suites/hnsw-benchmark.ts",
     "benchmark:quick": "bun run benchmark/index.ts --quick",
     "build": "rolldown --config rolldown.config.ts && tsc --project tsconfig.build.json",
     "cli": "bun src/cli.ts",
