@@ -16,7 +16,7 @@ import {
   ReadOnlyError,
   verifyDatabase
 } from './storage-engine'
-import type { VerifyResult } from './storage-engine'
+import type { CompactionResult, VerifyResult } from './storage-engine'
 import { KeyNotFoundError } from './key-not-found-error'
 import { HnswIndex } from './storage-engine/hnsw-index'
 import { LRUCache } from './lru-cache'
@@ -810,6 +810,23 @@ export class EmbeddingEngine extends EventEmitter {
    * Verify the integrity of the database by scanning all records
    * and validating checksums and structure.
    */
+  /**
+   * Compact the database by rewriting only live records.
+   * Removes dead records and reduces file size.
+   */
+  async compact(): Promise<CompactionResult> {
+    if (this.readOnly) {
+      throw new ReadOnlyError()
+    }
+    const storage = await this.ensureStorageEngine()
+    const result = await storage.compact()
+
+    // Rebuild HNSW index after compaction
+    this.hnswIndex = null
+
+    return result
+  }
+
   async verify(): Promise<VerifyResult> {
     return verifyDatabase(this.storePath)
   }

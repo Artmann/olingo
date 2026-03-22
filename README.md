@@ -357,6 +357,19 @@ bundling, mark these packages as external:
 
 </details>
 
+#### `compact()`
+
+Compact the database by rewriting only live records. Removes dead records from
+deletes and updates, reducing file size.
+
+```typescript
+const result = await engine.compact()
+console.log(result.recordsBefore) // Total records before (including dead)
+console.log(result.recordsAfter) // Live records after
+console.log(result.bytesBefore) // File size before
+console.log(result.bytesAfter) // File size after
+```
+
 #### `verify()`
 
 Verify the integrity of the database by scanning all records and validating

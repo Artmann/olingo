@@ -15,7 +15,7 @@ export {
 export { Mutex } from './mutex'
 export { DimensionMismatchError } from './dimension-mismatch-error'
 export { verifyDatabase } from './integrity'
-export type { VerifyResult, VerifyIssue } from './types'
+export type { CompactionResult, VerifyResult, VerifyIssue } from './types'
 
 // Types
 export type {

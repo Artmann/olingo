@@ -101,6 +101,20 @@ export interface DataFileHeader {
 /**
  * Issue found during integrity verification.
  */
+/**
+ * Result of compacting the database.
+ */
+export interface CompactionResult {
+  /** Number of records before compaction (including dead records) */
+  recordsBefore: number
+  /** Number of live records after compaction */
+  recordsAfter: number
+  /** Data file size in bytes before compaction */
+  bytesBefore: number
+  /** Data file size in bytes after compaction */
+  bytesAfter: number
+}
+
 export interface VerifyIssue {
   /** Byte offset where the issue was found */
   offset: number

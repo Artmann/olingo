@@ -10,7 +10,8 @@ import {
   search,
   deleteCmd,
   walCmd,
-  verifyCommand
+  verifyCommand,
+  compactCommand
 } from './commands'
 import type { PackageJson } from './types'
 
@@ -28,7 +29,15 @@ function main(): void {
       version: packageJson.version,
       description:
         'An embedding database CLI for storing and searching text indexes',
-      commands: [store, get, search, deleteCmd, walCmd, verifyCommand]
+      commands: [
+        store,
+        get,
+        search,
+        deleteCmd,
+        walCmd,
+        verifyCommand,
+        compactCommand
+      ]
     },
     () => {
       // When using commands with handlers, this callback is only called when no command is matched

@@ -8,7 +8,7 @@
  * and released immediately after, rather than held for the engine lifetime.
  */
 
-import { open, stat, mkdir } from 'node:fs/promises'
+import { open, stat, mkdir, rename, unlink, writeFile } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import {
@@ -30,6 +30,7 @@ import { FileLock, ReadOnlyError } from './file-lock'
 import { Mutex } from './mutex'
 import { DimensionMismatchError } from './dimension-mismatch-error'
 import type {
+  CompactionResult,
   DataRecord,
   RecordLocation,
   StorageEngineOptions,
@@ -44,8 +45,8 @@ export class StorageEngine {
   private readonly dimension: number
   private readonly readOnly: boolean
 
-  private readonly wal: Wal
-  private readonly index: KeyIndex
+  private wal: Wal
+  private index: KeyIndex
   private readonly writeMutex: Mutex
 
   private dataHandle: FileHandle | null = null
@@ -340,6 +341,142 @@ export class StorageEngine {
    */
   getDimension(): number {
     return this.dimension
+  }
+
+  /**
+   * Compact the database by rewriting only live records.
+   * Removes dead records (deletes, superseded updates) and rebuilds the WAL.
+   */
+  async compact(): Promise<CompactionResult> {
+    if (this.readOnly) {
+      throw new ReadOnlyError()
+    }
+
+    const fileLock = new FileLock(this.lockPath, this.lockTimeout)
+    await fileLock.acquire()
+
+    try {
+      // Get current file size
+      const bytesBefore = await stat(this.dataPath)
+        .then((s) => s.size)
+        .catch(() => 0)
+
+      // Count total records (live + dead). For simplicity, scan the data file.
+      const recordsBefore = await this.countAllRecords()
+
+      // Collect all live records from the index
+      const liveRecords: Array<{ key: string; record: DataRecord }> = []
+      for (const [key, location] of this.index.locations()) {
+        const record = await this.readRecordAt(location.offset, location.length)
+        if (record) {
+          liveRecords.push({ key, record })
+        }
+      }
+
+      // Close the current data handle
+      if (this.dataHandle) {
+        await this.dataHandle.close()
+        this.dataHandle = null
+        this.dataHandlePromise = null
+      }
+
+      // Write live records to a temp file
+      const tmpPath = this.dataPath + '.compact'
+      const tmpHandle = await open(tmpPath, 'w')
+
+      try {
+        // Write header
+        const header = serializeHeader(this.dimension)
+        await tmpHandle.write(header, 0, header.length, 0)
+        let offset = headerSize
+
+        // Reset sequence counter for compacted file
+        let seqNum = 0n
+        const newIndex = KeyIndex.create()
+
+        // Close the old WAL
+        await this.wal.close()
+
+        // Truncate the WAL file
+        await writeFile(this.walPath, new Uint8Array(0))
+
+        // Create a fresh WAL
+        const newWal = new Wal(this.walPath, false)
+
+        // Write each live record
+        for (const { key, record } of liveRecords) {
+          const newRecord: DataRecord = {
+            ...record,
+            opType: opType.insert,
+            sequenceNumber: seqNum,
+            timestamp: BigInt(Date.now())
+          }
+          const recordData = serializeDataRecord(newRecord)
+          await tmpHandle.write(recordData, 0, recordData.length, offset)
+
+          // Write WAL entry
+          await newWal.append({
+            opType: opType.insert,
+            sequenceNumber: seqNum,
+            offset,
+            length: recordData.length,
+            keyHash: hashKey(key)
+          })
+
+          // Update index
+          newIndex.apply(
+            key,
+            {
+              offset,
+              length: recordData.length,
+              sequenceNumber: seqNum
+            },
+            opType.insert
+          )
+
+          offset += recordData.length
+          seqNum++
+        }
+
+        await tmpHandle.sync()
+        await tmpHandle.close()
+
+        // Swap files: rename temp to main
+        await unlink(this.dataPath).catch(() => {})
+        await rename(tmpPath, this.dataPath)
+
+        // Update internal state
+        this.wal = newWal
+        this.index = newIndex
+        this.sequenceCounter = seqNum
+
+        const bytesAfter = await stat(this.dataPath)
+          .then((s) => s.size)
+          .catch(() => 0)
+
+        return {
+          recordsBefore,
+          recordsAfter: liveRecords.length,
+          bytesBefore,
+          bytesAfter
+        }
+      } catch (error) {
+        await tmpHandle.close()
+        await unlink(tmpPath).catch(() => {})
+        throw error
+      }
+    } finally {
+      await fileLock.release()
+    }
+  }
+
+  /**
+   * Count all records in the data file (including dead ones).
+   */
+  private async countAllRecords(): Promise<number> {
+    const { verifyDatabase } = await import('./integrity')
+    const result = await verifyDatabase(this.dataPath)
+    return result.totalRecords
   }
 
   /**

@@ -10,7 +10,11 @@ export {
   LockPermissionError,
   DimensionMismatchError
 } from './storage-engine'
-export type { VerifyResult, VerifyIssue } from './storage-engine'
+export type {
+  CompactionResult,
+  VerifyResult,
+  VerifyIssue
+} from './storage-engine'
 export { KeyNotFoundError } from './key-not-found-error'
 export type {
   DatabaseStats,
