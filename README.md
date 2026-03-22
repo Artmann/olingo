@@ -449,6 +449,14 @@ cold start times for large databases.
 
 The index is saved automatically when calling `dispose()`.
 
+## Multi-Process Safety
+
+Olingo uses file-based locking to prevent concurrent writes. If a process
+crashes without releasing the lock, the lock file becomes stale. Olingo
+automatically detects stale locks by checking if the PID in the lock file is
+still alive. If the owning process has exited, the lock is automatically
+recovered.
+
 ## Error Handling
 
 Olingo provides custom error classes for common failure scenarios:

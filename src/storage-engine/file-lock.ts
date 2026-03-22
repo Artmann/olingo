@@ -1,4 +1,4 @@
-import { mkdir, open, rm } from 'node:fs/promises'
+import { mkdir, open, readFile, rm } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 const defaultLockTimeout = 10_000
@@ -54,6 +54,12 @@ export class FileLock {
         if (error instanceof Error && 'code' in error) {
           // EEXIST: Lock file exists - another process holds the lock
           if (error.code === 'EEXIST') {
+            // Check if the lock is stale (owning process is dead)
+            if (await this.isLockStale()) {
+              await rm(this.filePath, { force: true })
+              continue // Retry immediately
+            }
+
             const elapsed = Date.now() - startTime
             if (elapsed >= this.timeoutMs) {
               throw new DatabaseLockedError(
@@ -96,6 +102,35 @@ export class FileLock {
    */
   isLocked(): boolean {
     return this.locked
+  }
+
+  /**
+   * Check if an existing lock file is stale (owning process is dead).
+   * Returns true if the lock appears stale and should be recovered.
+   */
+  private async isLockStale(): Promise<boolean> {
+    try {
+      const content = await readFile(this.filePath, 'utf-8')
+      const pid = parseInt(content.trim(), 10)
+
+      if (isNaN(pid)) {
+        // Invalid PID in lock file — treat as stale
+        return true
+      }
+
+      // Check if the process is alive
+      try {
+        process.kill(pid, 0)
+        // Process is alive — lock is NOT stale
+        return false
+      } catch {
+        // Process is dead — lock IS stale
+        return true
+      }
+    } catch {
+      // Can't read lock file — treat as stale
+      return true
+    }
   }
 }
 
