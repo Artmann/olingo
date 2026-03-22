@@ -695,6 +695,80 @@ export class EmbeddingEngine extends EventEmitter {
    * Returns an async iterator over all keys in the database.
    * More memory-efficient than keys() for large databases.
    */
+  /**
+   * Searches for multiple queries in batch.
+   * Generates embeddings in parallel and runs HNSW lookups for each.
+   * @param queries - Array of search query strings
+   * @param limit - Maximum results per query (default: 10)
+   * @param minSimilarity - Minimum similarity threshold (default: 0.5)
+   * @returns Map from query string to its search results
+   */
+  async searchMany(
+    queries: string[],
+    limit: number = 10,
+    minSimilarity: number = 0.5
+  ): Promise<Map<string, SearchResult[]>> {
+    const resultMap = new Map<string, SearchResult[]>()
+
+    if (queries.length === 0) {
+      return resultMap
+    }
+
+    // Deduplicate queries to avoid redundant embedding generation
+    const uniqueQueries = [...new Set(queries)]
+    const embeddingPromises = uniqueQueries.map((query) =>
+      this.generateEmbeddingFloat32(query)
+    )
+    const uniqueEmbeddings = await Promise.all(embeddingPromises)
+    const embeddingMap = new Map<string, Float32Array>()
+    for (let i = 0; i < uniqueQueries.length; i++) {
+      embeddingMap.set(uniqueQueries[i], uniqueEmbeddings[i])
+    }
+    const embeddings = queries.map(
+      (q) => embeddingMap.get(q) ?? new Float32Array(0)
+    )
+
+    // Ensure HNSW index and storage are ready
+    const storage = await this.ensureStorageEngine()
+    if (storage.count() === 0) {
+      for (const query of queries) {
+        resultMap.set(query, [])
+      }
+      return resultMap
+    }
+    const hnswIndex = await this.ensureHnswIndex(storage)
+
+    // Run lookups sequentially (HNSW is not thread-safe)
+    for (let i = 0; i < queries.length; i++) {
+      const queryEmbedding = embeddings[i]
+      const overscan = Math.max(limit * 3, limit + 20)
+      const candidateKeys = hnswIndex.search(
+        Array.from(queryEmbedding),
+        overscan
+      )
+
+      const results: SearchResult[] = []
+      for (const key of candidateKeys) {
+        const vec = hnswIndex.getVector(key)
+        if (!vec) {
+          continue
+        }
+        const similarity = this.cosineSimilarity(
+          queryEmbedding,
+          new Float32Array(vec)
+        )
+        if (similarity >= minSimilarity) {
+          results.push({ key, similarity })
+        }
+      }
+
+      results.sort((a, b) => b.similarity - a.similarity)
+      resultMap.set(queries[i], results.slice(0, limit))
+    }
+
+    return resultMap
+  }
+
   async *keysIterator(): AsyncIterableIterator<string> {
     const storage = await this.ensureStorageEngine()
     for (const key of storage.keys()) {

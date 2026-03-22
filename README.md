@@ -200,6 +200,19 @@ await engine.storeManyEmbeddings([
 ])
 ```
 
+#### `searchMany(queries, limit?, minSimilarity?)`
+
+Search for multiple queries in batch. Deduplicates identical queries and
+generates embeddings in parallel.
+
+```typescript
+const results = await engine.searchMany(['hello', 'goodbye', 'test'], 10, 0.7)
+// Returns Map<string, SearchResult[]>
+for (const [query, queryResults] of results) {
+  console.log(`${query}: ${queryResults.length} results`)
+}
+```
+
 #### `keysIterator()`
 
 Returns an async iterator over all keys. More memory-efficient than `keys()`.
