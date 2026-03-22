@@ -97,3 +97,27 @@ export interface DataFileHeader {
   /** Embedding dimension */
   dimension: number
 }
+
+/**
+ * Issue found during integrity verification.
+ */
+export interface VerifyIssue {
+  /** Byte offset where the issue was found */
+  offset: number
+  /** Description of the issue */
+  message: string
+}
+
+/**
+ * Result of verifying database integrity.
+ */
+export interface VerifyResult {
+  /** Total number of records scanned (valid + corrupt) */
+  totalRecords: number
+  /** Number of valid records */
+  validRecords: number
+  /** Number of corrupt records */
+  corruptRecords: number
+  /** List of issues found */
+  issues: VerifyIssue[]
+}

@@ -357,6 +357,19 @@ bundling, mark these packages as external:
 
 </details>
 
+#### `verify()`
+
+Verify the integrity of the database by scanning all records and validating
+checksums.
+
+```typescript
+const result = await engine.verify()
+console.log(result.totalRecords) // Total records scanned
+console.log(result.validRecords) // Valid records
+console.log(result.corruptRecords) // Corrupt records
+console.log(result.issues) // Array of { offset, message }
+```
+
 ## Events
 
 `EmbeddingEngine` extends `EventEmitter` and emits events for database

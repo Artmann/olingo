@@ -13,8 +13,10 @@ import {
   StorageEngine,
   ensureV2Format,
   opType,
-  ReadOnlyError
+  ReadOnlyError,
+  verifyDatabase
 } from './storage-engine'
+import type { VerifyResult } from './storage-engine'
 import { KeyNotFoundError } from './key-not-found-error'
 import { HnswIndex } from './storage-engine/hnsw-index'
 import { LRUCache } from './lru-cache'
@@ -804,6 +806,14 @@ export class EmbeddingEngine extends EventEmitter {
   /**
    * Returns database statistics including record count, file sizes, and configuration.
    */
+  /**
+   * Verify the integrity of the database by scanning all records
+   * and validating checksums and structure.
+   */
+  async verify(): Promise<VerifyResult> {
+    return verifyDatabase(this.storePath)
+  }
+
   async stats(): Promise<DatabaseStats> {
     const storage = await this.ensureStorageEngine()
     const recordCount = storage.count()

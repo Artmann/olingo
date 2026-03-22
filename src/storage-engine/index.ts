@@ -14,6 +14,8 @@ export {
 } from './file-lock'
 export { Mutex } from './mutex'
 export { DimensionMismatchError } from './dimension-mismatch-error'
+export { verifyDatabase } from './integrity'
+export type { VerifyResult, VerifyIssue } from './types'
 
 // Types
 export type {
