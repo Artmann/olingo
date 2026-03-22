@@ -7,7 +7,8 @@ export { LRUCache } from './lru-cache'
 export {
   ReadOnlyError,
   DatabaseLockedError,
-  LockPermissionError
+  LockPermissionError,
+  DimensionMismatchError
 } from './storage-engine'
 export type {
   EmbeddingEntry,

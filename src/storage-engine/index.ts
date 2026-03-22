@@ -13,6 +13,7 @@ export {
   LockPermissionError
 } from './file-lock'
 export { Mutex } from './mutex'
+export { DimensionMismatchError } from './dimension-mismatch-error'
 
 // Types
 export type {

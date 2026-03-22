@@ -28,6 +28,7 @@ import { Wal } from './wal'
 import { KeyIndex } from './key-index'
 import { FileLock, ReadOnlyError } from './file-lock'
 import { Mutex } from './mutex'
+import { DimensionMismatchError } from './dimension-mismatch-error'
 import type {
   DataRecord,
   RecordLocation,
@@ -175,9 +176,7 @@ export class StorageEngine {
     }
 
     if (embedding.length !== this.dimension) {
-      throw new Error(
-        `Embedding dimension mismatch: expected ${this.dimension}, got ${embedding.length}`
-      )
+      throw new DimensionMismatchError(this.dimension, embedding.length)
     }
 
     // In-process serialization via mutex

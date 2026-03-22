@@ -263,7 +263,9 @@ Each line is a JSON object:
 - **Append-only**: New entries are always appended
 - **Deduplication**: Most recent entry for a key wins
 - **Default Path**: `./database.jsonl`
-- **Embedding Dimensions**: 768 (BGE-Base-EN model)
+- **Embedding Dimensions**: 384 (BGE-Small-EN-V1.5 model)
+- **Dimension Validation**: `DimensionMismatchError` thrown when embedding
+  dimensions don't match
 - **No Deletion**: To "delete", append new entry with same key
 
 ## API Reference

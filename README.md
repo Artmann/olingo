@@ -268,6 +268,36 @@ bundling, mark these packages as external:
 
 </details>
 
+## Error Handling
+
+Olingo provides custom error classes for common failure scenarios:
+
+- **`DimensionMismatchError`** - Thrown when an embedding's dimension doesn't
+  match the database's expected dimension (384 for the default model). Includes
+  `expectedDimension` and `actualDimension` properties.
+- **`DatabaseLockedError`** - Thrown when the database is locked by another
+  process.
+- **`ReadOnlyError`** - Thrown when attempting to write to a read-only database.
+- **`LockPermissionError`** - Thrown when the lock file cannot be created due to
+  permissions.
+- **`ModelInitializationError`** - Thrown when the embedding model fails to
+  initialize.
+- **`EmbeddingGenerationError`** - Thrown when embedding generation fails.
+
+```typescript
+import { DimensionMismatchError } from 'olingo'
+
+try {
+  await engine.store('doc1', 'some text')
+} catch (error) {
+  if (error instanceof DimensionMismatchError) {
+    console.log(
+      `Expected ${error.expectedDimension}d, got ${error.actualDimension}d`
+    )
+  }
+}
+```
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for
