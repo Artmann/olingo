@@ -692,6 +692,33 @@ export class EmbeddingEngine extends EventEmitter {
   }
 
   /**
+   * Returns an async iterator over all keys in the database.
+   * More memory-efficient than keys() for large databases.
+   */
+  async *keysIterator(): AsyncIterableIterator<string> {
+    const storage = await this.ensureStorageEngine()
+    for (const key of storage.keys()) {
+      yield key
+    }
+  }
+
+  /**
+   * Returns an async iterator that yields search results one at a time.
+   * Results are sorted by similarity (highest first).
+   * @param query - Search query text
+   * @param options - Search options (limit, minSimilarity)
+   */
+  async *searchStream(
+    query: string,
+    options?: SearchOptions
+  ): AsyncIterableIterator<SearchResult> {
+    const results = await this.search(query, options)
+    for (const result of results) {
+      yield result
+    }
+  }
+
+  /**
    * Gets the number of entries in the database
    * @returns Number of entries
    */

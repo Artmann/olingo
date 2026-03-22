@@ -200,6 +200,28 @@ await engine.storeManyEmbeddings([
 ])
 ```
 
+#### `keysIterator()`
+
+Returns an async iterator over all keys. More memory-efficient than `keys()`.
+
+```typescript
+for await (const key of engine.keysIterator()) {
+  console.log(key)
+}
+```
+
+#### `searchStream(query, options?)`
+
+Returns an async iterator that yields search results one at a time.
+
+```typescript
+for await (const result of engine.searchStream('query', {
+  minSimilarity: 0.7
+})) {
+  console.log(result.key, result.similarity)
+}
+```
+
 #### `stats()`
 
 Returns database statistics.
