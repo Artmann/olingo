@@ -357,6 +357,15 @@ bundling, mark these packages as external:
 
 </details>
 
+#### `backup(destPath)`
+
+Create a consistent backup of the database. Copies the data file, WAL, and HNSW
+sidecar to the destination.
+
+```typescript
+await engine.backup('./backups/database.raptor')
+```
+
 #### `compact()`
 
 Compact the database by rewriting only live records. Removes dead records from

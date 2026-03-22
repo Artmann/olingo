@@ -24,7 +24,14 @@ import {
   deserializeHnswIndex
 } from './storage-engine/hnsw-persistence'
 import { LRUCache } from './lru-cache'
-import { readFile, writeFile, stat } from 'node:fs/promises'
+import {
+  copyFile,
+  readFile,
+  writeFile,
+  mkdir as mkdirFs,
+  stat
+} from 'node:fs/promises'
+import { dirname } from 'node:path'
 import type {
   DatabaseStats,
   DetailedSearchResult,
@@ -862,6 +869,28 @@ export class EmbeddingEngine extends EventEmitter {
    * Compact the database by rewriting only live records.
    * Removes dead records and reduces file size.
    */
+  /**
+   * Create a consistent backup of the database at the given destination path.
+   * Copies the data file, WAL, and HNSW sidecar (if they exist).
+   * @param destPath - Path for the backup data file (e.g., './backup/db.raptor')
+   */
+  async backup(destPath: string): Promise<void> {
+    // Ensure destination directory exists
+    await mkdirFs(dirname(destPath), { recursive: true })
+
+    // Ensure storage is initialized
+    await this.ensureStorageEngine()
+
+    // Copy data file
+    await copyFile(this.storePath, destPath).catch(() => {})
+
+    // Copy WAL
+    await copyFile(this.storePath + '-wal', destPath + '-wal').catch(() => {})
+
+    // Copy HNSW sidecar if it exists
+    await copyFile(this.hnswIndexPath, destPath + '-hnsw').catch(() => {})
+  }
+
   async compact(): Promise<CompactionResult> {
     if (this.readOnly) {
       throw new ReadOnlyError()
