@@ -10,6 +10,7 @@ export {
   LockPermissionError,
   DimensionMismatchError
 } from './storage-engine'
+export { KeyNotFoundError } from './key-not-found-error'
 export type {
   DatabaseStats,
   EmbeddingEntry,

@@ -14,6 +14,7 @@ import {
   opType,
   ReadOnlyError
 } from './storage-engine'
+import { KeyNotFoundError } from './key-not-found-error'
 import { HnswIndex } from './storage-engine/hnsw-index'
 import { LRUCache } from './lru-cache'
 import { stat } from 'node:fs/promises'
@@ -502,6 +503,31 @@ export class EmbeddingEngine {
       for (let i = 0; i < items.length; i++) {
         this.hnswIndex.insert(items[i].key, Array.from(embeddingsList[i]))
       }
+    }
+  }
+
+  /**
+   * Updates the text for an existing key. Throws KeyNotFoundError if the key doesn't exist.
+   * @param key - Unique identifier for the entry to update
+   * @param text - New text content to store
+   */
+  async update(key: string, text: string): Promise<void> {
+    if (this.readOnly) {
+      throw new ReadOnlyError()
+    }
+    invariant(key, 'Key must be provided.')
+    invariant(text, 'Text must be provided.')
+
+    const storage = await this.ensureStorageEngine()
+    if (!storage.hasKey(key)) {
+      throw new KeyNotFoundError(key)
+    }
+
+    const embedding = await this.generateEmbeddingFloat32(text)
+    await storage.writeRecord(key, embedding, opType.update)
+
+    if (this.hnswIndex !== null) {
+      this.hnswIndex.insert(key, Array.from(embedding))
     }
   }
 

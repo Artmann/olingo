@@ -162,6 +162,15 @@ results.forEach((result) => {
 })
 ```
 
+#### `update(key, text)`
+
+Update the text for an existing key. Throws `KeyNotFoundError` if the key
+doesn't exist.
+
+```typescript
+await engine.update('doc1', 'new text for doc1')
+```
+
 #### `storeEmbedding(key, embedding)`
 
 Store a pre-computed embedding directly, bypassing the embedding model.
@@ -340,6 +349,8 @@ loaded.
 
 Olingo provides custom error classes for common failure scenarios:
 
+- **`KeyNotFoundError`** - Thrown when attempting to update a key that doesn't
+  exist. Includes the `key` property.
 - **`DimensionMismatchError`** - Thrown when an embedding's dimension doesn't
   match the database's expected dimension (384 for the default model). Includes
   `expectedDimension` and `actualDimension` properties.
