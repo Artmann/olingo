@@ -6,6 +6,7 @@ import {
   type LlamaModel,
   type LlamaEmbeddingContext
 } from 'node-llama-cpp'
+import { EventEmitter } from 'node:events'
 import invariant from 'tiny-invariant'
 
 import {
@@ -78,7 +79,7 @@ function handleProcessExit(): void {
   enginesWithNativeResources.clear()
 }
 
-export class EmbeddingEngine {
+export class EmbeddingEngine extends EventEmitter {
   private storageEngine: StorageEngine | null = null
   private storePath: string
   private cacheDir: string
@@ -97,6 +98,7 @@ export class EmbeddingEngine {
   private readonly customProvider: EmbeddingProvider | null = null
 
   constructor(options: EngineOptions) {
+    super()
     this.storePath = options.storePath
     this.cacheDir = options.cacheDir ?? defaultCacheDir
     this.readOnly = options.readOnly ?? false
@@ -434,7 +436,11 @@ export class EmbeddingEngine {
     }
 
     results.sort((a, b) => b.similarity - a.similarity)
-    return results.slice(0, limit)
+    const finalResults = results.slice(0, limit)
+
+    this.emit('search', { query, resultCount: finalResults.length })
+
+    return finalResults
   }
 
   /**
@@ -460,6 +466,8 @@ export class EmbeddingEngine {
     if (this.hnswIndex !== null) {
       this.hnswIndex.insert(key, Array.from(embedding))
     }
+
+    this.emit('store', { key })
   }
 
   /**
@@ -529,6 +537,8 @@ export class EmbeddingEngine {
     if (this.hnswIndex !== null) {
       this.hnswIndex.insert(key, Array.from(embedding))
     }
+
+    this.emit('update', { key })
   }
 
   /**
@@ -614,6 +624,10 @@ export class EmbeddingEngine {
     // Remove from HNSW index if it exists
     if (deleted && this.hnswIndex !== null) {
       this.hnswIndex.delete(key)
+    }
+
+    if (deleted) {
+      this.emit('delete', { key })
     }
 
     return deleted

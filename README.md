@@ -313,6 +313,20 @@ bundling, mark these packages as external:
 
 </details>
 
+## Events
+
+`EmbeddingEngine` extends `EventEmitter` and emits events for database
+operations:
+
+```typescript
+engine.on('store', ({ key }) => console.log(`Stored: ${key}`))
+engine.on('update', ({ key }) => console.log(`Updated: ${key}`))
+engine.on('delete', ({ key }) => console.log(`Deleted: ${key}`))
+engine.on('search', ({ query, resultCount }) =>
+  console.log(`Search: "${query}" → ${resultCount} results`)
+)
+```
+
 ## Custom Embedding Providers
 
 You can use any embedding model or service by implementing the
