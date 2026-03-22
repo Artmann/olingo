@@ -19,8 +19,12 @@ import {
 import type { CompactionResult, VerifyResult } from './storage-engine'
 import { KeyNotFoundError } from './key-not-found-error'
 import { HnswIndex } from './storage-engine/hnsw-index'
+import {
+  serializeHnswIndex,
+  deserializeHnswIndex
+} from './storage-engine/hnsw-persistence'
 import { LRUCache } from './lru-cache'
-import { stat } from 'node:fs/promises'
+import { readFile, writeFile, stat } from 'node:fs/promises'
 import type {
   DatabaseStats,
   DetailedSearchResult,
@@ -153,9 +157,30 @@ export class EmbeddingEngine extends EventEmitter {
   /**
    * Lazily builds HNSW index from storage on first call
    */
+  private get hnswIndexPath(): string {
+    return this.storePath + '-hnsw'
+  }
+
   private async ensureHnswIndex(storage: StorageEngine): Promise<HnswIndex> {
     if (this.hnswIndex !== null) {
       return this.hnswIndex
+    }
+
+    // Try loading from disk first
+    try {
+      const data = await readFile(this.hnswIndexPath)
+      const index = deserializeHnswIndex(new Uint8Array(data))
+
+      // Verify the index has the same number of entries as the storage
+      // If not, rebuild from scratch (stale sidecar)
+      if (index.has('__check__') || this.isHnswStale(index, storage)) {
+        throw new Error('stale')
+      }
+
+      this.hnswIndex = index
+      return this.hnswIndex
+    } catch {
+      // Sidecar missing or stale, rebuild from storage
     }
 
     const index = new HnswIndex()
@@ -168,7 +193,30 @@ export class EmbeddingEngine extends EventEmitter {
     }
 
     this.hnswIndex = index
+
+    // Persist to disk (non-blocking, don't fail if it can't write)
+    this.persistHnswIndex(index).catch(() => {})
+
     return this.hnswIndex
+  }
+
+  private isHnswStale(index: HnswIndex, storage: StorageEngine): boolean {
+    // Simple check: does the index key count match storage?
+    const storageKeys = new Set(storage.keys())
+    for (const key of storageKeys) {
+      if (!index.has(key)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private async persistHnswIndex(index: HnswIndex): Promise<void> {
+    if (this.readOnly) {
+      return
+    }
+    const data = serializeHnswIndex(index)
+    await writeFile(this.hnswIndexPath, data)
   }
 
   /**
@@ -942,8 +990,11 @@ export class EmbeddingEngine extends EventEmitter {
     // Remove from shared exit handler tracking
     enginesWithNativeResources.delete(this)
 
-    // Clear HNSW index
-    this.hnswIndex = null
+    // Persist HNSW index before clearing
+    if (this.hnswIndex !== null) {
+      await this.persistHnswIndex(this.hnswIndex).catch(() => {})
+      this.hnswIndex = null
+    }
 
     // Clear text embedding cache
     if (this.textEmbeddingCache) {

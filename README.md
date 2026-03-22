@@ -429,6 +429,17 @@ const engine = new EmbeddingEngine({
 When a custom provider is set, the default BGE model is never downloaded or
 loaded.
 
+## Performance
+
+### Persistent HNSW Index
+
+Olingo automatically persists the HNSW search index to a `.raptor-hnsw` sidecar
+file. On startup, if the sidecar exists and is not stale, the index is loaded
+from disk instead of being rebuilt from all records. This significantly improves
+cold start times for large databases.
+
+The index is saved automatically when calling `dispose()`.
+
 ## Error Handling
 
 Olingo provides custom error classes for common failure scenarios:
