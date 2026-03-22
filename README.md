@@ -144,21 +144,30 @@ await engine.storeMany([
 ])
 ```
 
-#### `search(query, limit?, minSimilarity?)`
+#### `search(query, limit?, minSimilarity?)` / `search(query, options?)`
 
-Search for semantically similar entries.
+Search for semantically similar entries. Supports both positional arguments and
+a `SearchOptions` object.
 
 ```typescript
-const results = await engine.search(
-  'artificial intelligence', // query text
-  10, // max results (default: 10)
-  0.7 // min similarity 0-1 (default: 0)
-)
+// Positional arguments (backward compatible)
+const results = await engine.search('artificial intelligence', 10, 0.7)
 
-// Results are sorted by similarity (highest first)
-results.forEach((result) => {
-  console.log(result.key) // Document key
-  console.log(result.similarity) // Similarity score 0-1
+// SearchOptions object
+const results2 = await engine.search('artificial intelligence', {
+  limit: 10,
+  minSimilarity: 0.7
+})
+
+// Detailed results with similarity breakdown
+const detailed = await engine.search('artificial intelligence', {
+  limit: 10,
+  minSimilarity: 0.7,
+  includeDetails: true
+})
+detailed.forEach((r) => {
+  console.log(r.key, r.similarity)
+  console.log(r.queryNorm, r.resultNorm, r.dotProduct)
 })
 ```
 

@@ -21,9 +21,11 @@ import { LRUCache } from './lru-cache'
 import { stat } from 'node:fs/promises'
 import type {
   DatabaseStats,
+  DetailedSearchResult,
   EmbeddingEntry,
   EmbeddingProvider,
   EngineOptions,
+  SearchOptions,
   SearchResult
 } from './types'
 
@@ -397,9 +399,33 @@ export class EmbeddingEngine extends EventEmitter {
    */
   async search(
     query: string,
-    limit: number = 10,
-    minSimilarity: number = 0.5
-  ): Promise<SearchResult[]> {
+    options: SearchOptions & { includeDetails: true }
+  ): Promise<DetailedSearchResult[]>
+  async search(query: string, options?: SearchOptions): Promise<SearchResult[]>
+  async search(
+    query: string,
+    limit?: number,
+    minSimilarity?: number
+  ): Promise<SearchResult[]>
+  async search(
+    query: string,
+    limitOrOptions?: number | SearchOptions,
+    minSimilarityArg?: number
+  ): Promise<SearchResult[] | DetailedSearchResult[]> {
+    let limit: number
+    let minSimilarity: number
+    let includeDetails: boolean
+
+    if (typeof limitOrOptions === 'object' && limitOrOptions !== null) {
+      limit = limitOrOptions.limit ?? 10
+      minSimilarity = limitOrOptions.minSimilarity ?? 0.5
+      includeDetails = limitOrOptions.includeDetails ?? false
+    } else {
+      limit = limitOrOptions ?? 10
+      minSimilarity = minSimilarityArg ?? 0.5
+      includeDetails = false
+    }
+
     invariant(query, 'Query text must be provided.')
     invariant(limit > 0, 'Limit must be a positive integer.')
     invariant(
@@ -420,18 +446,41 @@ export class EmbeddingEngine extends EventEmitter {
     const overscan = Math.max(limit * 3, limit + 20)
     const candidateKeys = hnswIndex.search(Array.from(queryEmbedding), overscan)
 
-    const results: SearchResult[] = []
+    let queryNorm = 0
+    if (includeDetails) {
+      for (let i = 0; i < queryEmbedding.length; i++) {
+        queryNorm += queryEmbedding[i] * queryEmbedding[i]
+      }
+      queryNorm = Math.sqrt(queryNorm)
+    }
+
+    const results: Array<SearchResult | DetailedSearchResult> = []
     for (const key of candidateKeys) {
       const vec = hnswIndex.getVector(key)
       if (!vec) {
         continue
       }
-      const similarity = this.cosineSimilarity(
-        queryEmbedding,
-        new Float32Array(vec)
-      )
+      const resultEmbedding = new Float32Array(vec)
+      const similarity = this.cosineSimilarity(queryEmbedding, resultEmbedding)
       if (similarity >= minSimilarity) {
-        results.push({ key, similarity })
+        if (includeDetails) {
+          let dotProduct = 0
+          let resultNorm = 0
+          for (let i = 0; i < queryEmbedding.length; i++) {
+            dotProduct += queryEmbedding[i] * resultEmbedding[i]
+            resultNorm += resultEmbedding[i] * resultEmbedding[i]
+          }
+          resultNorm = Math.sqrt(resultNorm)
+          results.push({
+            key,
+            similarity,
+            queryNorm,
+            resultNorm,
+            dotProduct
+          } as DetailedSearchResult)
+        } else {
+          results.push({ key, similarity })
+        }
       }
     }
 

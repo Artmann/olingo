@@ -23,6 +23,24 @@ export interface SearchResult {
   similarity: number
 }
 
+export interface DetailedSearchResult extends SearchResult {
+  /** L2 norm of the query embedding */
+  queryNorm: number
+  /** L2 norm of the result embedding */
+  resultNorm: number
+  /** Dot product between query and result embeddings */
+  dotProduct: number
+}
+
+export interface SearchOptions {
+  /** Maximum number of results to return (default: 10) */
+  limit?: number
+  /** Minimum cosine similarity threshold (default: 0.5) */
+  minSimilarity?: number
+  /** When true, returns DetailedSearchResult with norms and dot product */
+  includeDetails?: boolean
+}
+
 export interface StoreOptions {
   storePath?: string
 }

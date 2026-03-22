@@ -13,8 +13,10 @@ export {
 export { KeyNotFoundError } from './key-not-found-error'
 export type {
   DatabaseStats,
+  DetailedSearchResult,
   EmbeddingEntry,
   EmbeddingProvider,
+  SearchOptions,
   SearchResult,
   StoreOptions,
   EngineOptions
