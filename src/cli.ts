@@ -11,7 +11,10 @@ import {
   deleteCmd,
   walCmd,
   verifyCommand,
-  compactCommand
+  compactCommand,
+  countCommand,
+  keysCommand,
+  statsCommand
 } from './commands'
 import type { PackageJson } from './types'
 
@@ -36,7 +39,10 @@ function main(): void {
         deleteCmd,
         walCmd,
         verifyCommand,
-        compactCommand
+        compactCommand,
+        countCommand,
+        keysCommand,
+        statsCommand
       ]
     },
     () => {

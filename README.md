@@ -86,6 +86,13 @@ olingo search "forgot my password" --limit 5
 
 # Retrieve by key
 olingo get doc1
+
+# Database management
+olingo count                    # Show record count
+olingo keys                     # List all keys
+olingo stats                    # Show database statistics
+olingo verify                   # Check database integrity
+olingo compact                  # Remove dead records
 ```
 
 ## Examples
