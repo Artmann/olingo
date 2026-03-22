@@ -248,6 +248,17 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on:
 
 All jobs must pass for CI to succeed.
 
+### Release Pipeline
+
+A separate release workflow (`.github/workflows/release.yml`) triggers on
+version tags (`v*`):
+
+1. Runs all quality checks (typecheck, lint, format, test)
+2. Builds the package
+3. Publishes to npm with provenance
+
+To release: `git tag v3.0.0 && git push --tags`
+
 ## Storage Format
 
 ### JSONL Structure
