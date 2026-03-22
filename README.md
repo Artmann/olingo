@@ -162,6 +162,26 @@ results.forEach((result) => {
 })
 ```
 
+#### `storeEmbedding(key, embedding)`
+
+Store a pre-computed embedding directly, bypassing the embedding model.
+
+```typescript
+const embedding = new Float32Array(384) // or number[]
+await engine.storeEmbedding('doc1', embedding)
+```
+
+#### `storeManyEmbeddings(items)`
+
+Store multiple pre-computed embeddings in batch.
+
+```typescript
+await engine.storeManyEmbeddings([
+  { key: 'doc1', embedding: new Float32Array(384) },
+  { key: 'doc2', embedding: [0.1, 0.2 /* ... */] }
+])
+```
+
 #### `get(key)`
 
 Retrieve a specific entry by key.

@@ -504,6 +504,71 @@ export class EmbeddingEngine {
   }
 
   /**
+   * Stores a pre-computed embedding directly, bypassing the embedding model.
+   * Useful when you have pre-computed embeddings from an external source.
+   * @param key - Unique identifier for the entry
+   * @param embedding - Pre-computed embedding vector (Float32Array or number[])
+   */
+  async storeEmbedding(
+    key: string,
+    embedding: Float32Array | number[]
+  ): Promise<void> {
+    if (this.readOnly) {
+      throw new ReadOnlyError()
+    }
+    invariant(key, 'Key must be provided.')
+
+    const float32Embedding =
+      embedding instanceof Float32Array
+        ? embedding
+        : new Float32Array(embedding)
+
+    const storage = await this.ensureStorageEngine()
+    const op = storage.hasKey(key) ? opType.update : opType.insert
+    await storage.writeRecord(key, float32Embedding, op)
+
+    if (this.hnswIndex !== null) {
+      this.hnswIndex.insert(key, Array.from(float32Embedding))
+    }
+  }
+
+  /**
+   * Stores multiple pre-computed embeddings in batch.
+   * @param items - Array of {key, embedding} objects to store
+   */
+  async storeManyEmbeddings(
+    items: Array<{ key: string; embedding: Float32Array | number[] }>
+  ): Promise<void> {
+    if (this.readOnly) {
+      throw new ReadOnlyError()
+    }
+    invariant(items.length > 0, 'Items array must not be empty.')
+
+    const storage = await this.ensureStorageEngine()
+
+    const writePromises = items.map((item) => {
+      const float32Embedding =
+        item.embedding instanceof Float32Array
+          ? item.embedding
+          : new Float32Array(item.embedding)
+      const op = storage.hasKey(item.key) ? opType.update : opType.insert
+      return storage.writeRecord(item.key, float32Embedding, op)
+    })
+
+    await Promise.all(writePromises)
+
+    if (this.hnswIndex !== null) {
+      for (const item of items) {
+        const float32Embedding =
+          item.embedding instanceof Float32Array
+            ? item.embedding
+            : new Float32Array(item.embedding)
+        this.hnswIndex.insert(item.key, Array.from(float32Embedding))
+      }
+    }
+  }
+
+  /**
    * Deletes an entry by key
    * Logical delete - records a delete marker in the WAL
    * @param key - Unique identifier for the entry to delete
