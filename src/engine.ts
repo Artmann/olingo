@@ -16,7 +16,12 @@ import {
 } from './storage-engine'
 import { HnswIndex } from './storage-engine/hnsw-index'
 import { LRUCache } from './lru-cache'
-import type { EmbeddingEntry, EngineOptions, SearchResult } from './types'
+import type {
+  EmbeddingEntry,
+  EmbeddingProvider,
+  EngineOptions,
+  SearchResult
+} from './types'
 
 // Model URI for bge-small-en-v1.5 GGUF (384 dimensions, ~67MB)
 const defaultModelUri =
@@ -85,12 +90,19 @@ export class EmbeddingEngine {
   private hnswIndex: HnswIndex | null = null
   // LRU cache for text-to-embedding lookups (avoids regenerating embeddings for repeated text)
   private textEmbeddingCache: LRUCache<string, Float32Array> | null = null
+  // Custom embedding provider (when set, the default model is not loaded)
+  private readonly customProvider: EmbeddingProvider | null = null
 
   constructor(options: EngineOptions) {
     this.storePath = options.storePath
     this.cacheDir = options.cacheDir ?? defaultCacheDir
-    this.dimension = defaultDimension
     this.readOnly = options.readOnly ?? false
+    if (options.embeddingProvider) {
+      this.customProvider = options.embeddingProvider
+      this.dimension = options.embeddingProvider.dimension
+    } else {
+      this.dimension = defaultDimension
+    }
     if (options.embeddingCacheSize && options.embeddingCacheSize > 0) {
       this.textEmbeddingCache = new LRUCache(options.embeddingCacheSize)
     }
@@ -295,30 +307,36 @@ export class EmbeddingEngine {
       }
     }
 
-    await this.ensureModelLoaded()
-    invariant(this.embeddingContext, 'Embedding context not initialized')
+    let result: Float32Array
 
-    const truncatedText = this.truncateToContextSize(text)
+    if (this.customProvider) {
+      result = await this.customProvider.generateEmbedding(text)
+    } else {
+      await this.ensureModelLoaded()
+      invariant(this.embeddingContext, 'Embedding context not initialized')
 
-    let embedding
-    try {
-      embedding = await this.embeddingContext.getEmbeddingFor(truncatedText)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      const textPreview =
-        truncatedText.length > 100
-          ? truncatedText.slice(0, 100) + '...'
-          : truncatedText
-      throw new EmbeddingGenerationError(
-        `Failed to generate embedding for text.\n\n` +
-          `Text preview: "${textPreview}"\n` +
-          `Original error: ${message}\n\n` +
-          `This may be caused by invalid input or a model error.`,
-        error instanceof Error ? error : undefined
-      )
+      const truncatedText = this.truncateToContextSize(text)
+
+      let embedding
+      try {
+        embedding = await this.embeddingContext.getEmbeddingFor(truncatedText)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        const textPreview =
+          truncatedText.length > 100
+            ? truncatedText.slice(0, 100) + '...'
+            : truncatedText
+        throw new EmbeddingGenerationError(
+          `Failed to generate embedding for text.\n\n` +
+            `Text preview: "${textPreview}"\n` +
+            `Original error: ${message}\n\n` +
+            `This may be caused by invalid input or a model error.`,
+          error instanceof Error ? error : undefined
+        )
+      }
+
+      result = new Float32Array(embedding.vector)
     }
-
-    const result = new Float32Array(embedding.vector)
 
     // Store in cache
     if (this.textEmbeddingCache) {
@@ -454,31 +472,10 @@ export class EmbeddingEngine {
     }
     invariant(items.length > 0, 'Items array must not be empty.')
 
-    await this.ensureModelLoaded()
-    const embeddingContext = this.embeddingContext
-    invariant(embeddingContext, 'Embedding context not initialized')
-
-    // Generate embeddings in parallel, using cache when available
-    const embeddingPromises = items.map(async (item) => {
-      // Check text embedding cache first
-      if (this.textEmbeddingCache) {
-        const cached = this.textEmbeddingCache.get(item.text)
-        if (cached) {
-          return cached
-        }
-      }
-
-      const truncatedText = this.truncateToContextSize(item.text)
-      const embedding = await embeddingContext.getEmbeddingFor(truncatedText)
-      const result = new Float32Array(embedding.vector)
-
-      // Store in text embedding cache
-      if (this.textEmbeddingCache) {
-        this.textEmbeddingCache.set(item.text, result)
-      }
-
-      return result
-    })
+    // Generate embeddings in parallel using the unified method
+    const embeddingPromises = items.map((item) =>
+      this.generateEmbeddingFloat32(item.text)
+    )
 
     const embeddingsList = await Promise.all(embeddingPromises)
 

@@ -121,6 +121,9 @@ const engine = new EmbeddingEngine({
 - `readOnly` - Open database in read-only mode (default: `false`)
 - `embeddingCacheSize` - Size of the LRU cache for text-to-embedding lookups
   (default: `0` = disabled)
+- `embeddingProvider` - Custom embedding provider (optional). When provided, the
+  default model is not loaded. See
+  [Custom Embedding Providers](#custom-embedding-providers).
 
 #### `store(key, text)`
 
@@ -267,6 +270,38 @@ bundling, mark these packages as external:
 ```
 
 </details>
+
+## Custom Embedding Providers
+
+You can use any embedding model or service by implementing the
+`EmbeddingProvider` interface:
+
+```typescript
+import { EmbeddingEngine } from 'olingo'
+import type { EmbeddingProvider } from 'olingo'
+
+const myProvider: EmbeddingProvider = {
+  dimension: 1536,
+  async generateEmbedding(text: string): Promise<Float32Array> {
+    // Call your embedding API (OpenAI, Cohere, etc.)
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: 'text-embedding-3-small', input: text })
+    })
+    const data = await response.json()
+    return new Float32Array(data.data[0].embedding)
+  }
+}
+
+const engine = new EmbeddingEngine({
+  storePath: './database.raptor',
+  embeddingProvider: myProvider
+})
+```
+
+When a custom provider is set, the default BGE model is never downloaded or
+loaded.
 
 ## Error Handling
 

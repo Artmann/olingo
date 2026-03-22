@@ -116,6 +116,26 @@ export class StorageEngine {
       }
     }
 
+    // Validate dimension matches existing database header
+    try {
+      const fileHandle = await open(dataPath, 'r')
+      try {
+        const headerBuffer = new Uint8Array(headerSize)
+        await fileHandle.read(headerBuffer, 0, headerSize, 0)
+        const header = deserializeHeader(headerBuffer)
+        if (header && header.dimension !== dimension) {
+          throw new DimensionMismatchError(header.dimension, dimension)
+        }
+      } finally {
+        await fileHandle.close()
+      }
+    } catch (error) {
+      // File doesn't exist = fresh database, no validation needed
+      if (error instanceof DimensionMismatchError) {
+        throw error
+      }
+    }
+
     // Create WAL instance (read-only mode uses it only for recovery)
     const wal = new Wal(walPath, readOnly)
 

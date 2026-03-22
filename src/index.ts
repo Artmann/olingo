@@ -12,6 +12,7 @@ export {
 } from './storage-engine'
 export type {
   EmbeddingEntry,
+  EmbeddingProvider,
   SearchResult,
   StoreOptions,
   EngineOptions
