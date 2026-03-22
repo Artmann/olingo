@@ -182,6 +182,19 @@ await engine.storeManyEmbeddings([
 ])
 ```
 
+#### `stats()`
+
+Returns database statistics.
+
+```typescript
+const stats = await engine.stats()
+console.log(stats.recordCount) // Number of live records
+console.log(stats.dataFileSize) // Data file size in bytes
+console.log(stats.walFileSize) // WAL file size in bytes
+console.log(stats.dimension) // Embedding dimension (e.g., 384)
+console.log(stats.isReadOnly) // Whether in read-only mode
+```
+
 #### `get(key)`
 
 Retrieve a specific entry by key.

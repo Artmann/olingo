@@ -11,6 +11,7 @@ export {
   DimensionMismatchError
 } from './storage-engine'
 export type {
+  DatabaseStats,
   EmbeddingEntry,
   EmbeddingProvider,
   SearchResult,

@@ -16,7 +16,9 @@ import {
 } from './storage-engine'
 import { HnswIndex } from './storage-engine/hnsw-index'
 import { LRUCache } from './lru-cache'
+import { stat } from 'node:fs/promises'
 import type {
+  DatabaseStats,
   EmbeddingEntry,
   EmbeddingProvider,
   EngineOptions,
@@ -607,6 +609,37 @@ export class EmbeddingEngine {
   async count(): Promise<number> {
     const storage = await this.ensureStorageEngine()
     return storage.count()
+  }
+
+  /**
+   * Returns database statistics including record count, file sizes, and configuration.
+   */
+  async stats(): Promise<DatabaseStats> {
+    const storage = await this.ensureStorageEngine()
+    const recordCount = storage.count()
+
+    let dataFileSize = 0
+    let walFileSize = 0
+    try {
+      const dataStat = await stat(this.storePath)
+      dataFileSize = dataStat.size
+    } catch {
+      // File doesn't exist yet
+    }
+    try {
+      const walStat = await stat(this.storePath + '-wal')
+      walFileSize = walStat.size
+    } catch {
+      // WAL doesn't exist yet
+    }
+
+    return {
+      recordCount,
+      dataFileSize,
+      walFileSize,
+      dimension: this.dimension,
+      isReadOnly: this.readOnly
+    }
   }
 
   /**

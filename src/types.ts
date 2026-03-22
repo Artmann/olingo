@@ -5,6 +5,19 @@ export interface EmbeddingEntry {
   timestamp: number
 }
 
+export interface DatabaseStats {
+  /** Number of live records (excludes deleted) */
+  recordCount: number
+  /** Size of the data file in bytes */
+  dataFileSize: number
+  /** Size of the WAL file in bytes */
+  walFileSize: number
+  /** Embedding dimension */
+  dimension: number
+  /** Whether the database is in read-only mode */
+  isReadOnly: boolean
+}
+
 export interface SearchResult {
   key: string
   similarity: number
