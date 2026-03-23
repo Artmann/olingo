@@ -2,25 +2,27 @@
 
 ## Project Overview
 
-**Olingo** is a lightweight embedding database built for the Bun runtime that
-stores text embeddings in an append-only JSONL file format. It provides semantic
-search capabilities using cosine similarity with the BGE-Base-EN embedding model
-(768 dimensions).
+**Olingo** is a lightweight embedding database for Node.js (>=18) and Bun (>=1)
+that stores text embeddings in a WAL-based binary format (`.raptor` files). It
+provides semantic search via HNSW (Hierarchical Navigable Small World) indexing
+with the BGE-Small-EN-V1.5 embedding model (384 dimensions).
 
 **Key Features:**
 
 - Simple key-value storage for text embeddings
-- Semantic search using cosine similarity
-- Append-only JSONL storage format
+- Semantic search using HNSW index with cosine similarity
+- WAL-based binary storage with CRC32 checksums
+- Pluggable embedding providers (or bring your own embeddings)
+- EventEmitter-based hooks for database operations
+- Database compaction, integrity verification, and backup
 - Both CLI and programmatic API
-- Memory-efficient chunked file reading
 - Full TypeScript support
 
 **Tech Stack:**
 
-- Runtime: Bun
+- Runtime: Node.js >=18, Bun >=1
 - Language: TypeScript
-- Embedding Model: FastEmbed (BAAI/bge-base-en)
+- Embedding Model: node-llama-cpp (BAAI/bge-small-en-v1.5-gguf, 384 dimensions)
 - Build Tool: Rolldown
 - Test Framework: Vitest
 
@@ -30,76 +32,115 @@ search capabilities using cosine similarity with the BGE-Base-EN embedding model
 
 #### 1. EmbeddingEngine (`src/engine.ts`)
 
-The main class that orchestrates all operations:
+The main class (extends `EventEmitter`) that orchestrates all operations:
 
-- `store(key, text)` - Stores text with auto-generated embedding
-- `get(key)` - Retrieves entry by key (most recent if duplicates)
-- `search(query, limit, minSimilarity)` - Performs semantic search
-- `generateEmbedding(text)` - Generates embeddings using FastEmbed
-- `cosineSimilarity(a, b)` - Calculates cosine similarity between vectors
+- `store(key, text)` / `storeMany(items)` - Store text with auto-generated
+  embedding
+- `storeEmbedding(key, embedding)` / `storeManyEmbeddings(items)` - Store
+  pre-computed embeddings
+- `update(key, text)` - Update existing key (throws `KeyNotFoundError` if
+  missing)
+- `get(key)` / `has(key)` / `keys()` / `count()` - Lookup operations
+- `search(query, options)` / `searchMany(queries)` - Semantic search
+- `keysIterator()` / `searchStream()` - Async iterators for streaming
+- `delete(key)` - Logical delete
+- `stats()` / `verify()` / `compact()` / `backup()` - Database management
+- `dispose()` - Cleanup resources and persist HNSW index
+- Emits events: `store`, `update`, `delete`, `search`
 
-#### 2. EmbeddingFileReader (`src/embedding-file-reader.ts`)
+#### 2. StorageEngine (`src/storage-engine/storage-engine.ts`)
 
-Memory-efficient file reader that:
+WAL-based durable storage orchestrator:
 
-- Reads JSONL files in reverse order (most recent entries first)
-- Processes file in 64KB chunks to handle large files
-- Automatically deduplicates by key (newest entry wins)
-- Uses async generator pattern for streaming
+- Write path: Lock → Data write → fsync → WAL write → fsync → Index update
+- Operation-level locking (acquires lock per write, releases immediately)
+- Recovery via WAL replay on startup
+- Compaction support (rewrite live records, rebuild WAL)
 
-#### 3. CandidateSet (`src/candidate-set.ts`)
+#### 3. HnswIndex (`src/storage-engine/hnsw-index.ts`)
 
-Optimized data structure for top-N search results:
+HNSW approximate nearest-neighbor search:
 
-- Maintains fixed-size priority queue of highest similarity matches
-- Early rejection of candidates below minimum threshold
-- Efficient O(n) insertion for bounded size
-- Sorts results by similarity (descending)
+- Parameters: maxLayer=3, maxNeighbors=10, efConstruction=200, efSearch=50
+- Lazily built from storage on first search call
+- Persistent serialization to `.raptor-hnsw` sidecar file
 
-#### 4. CLI (`src/cli.ts`)
+#### 4. KeyIndex (`src/storage-engine/key-index.ts`)
 
-Command-line interface with three commands:
+In-memory map for O(1) key lookups, rebuilt from WAL during startup.
 
-- `olingo store <key> <text>` - Store new embedding
-- `olingo get <key>` - Retrieve by key
-- `olingo search <query>` - Semantic search
+#### 5. WAL (`src/storage-engine/wal.ts`)
+
+Fixed 48-byte entries per operation with checksums.
+
+#### 6. FileLock (`src/storage-engine/file-lock.ts`)
+
+Atomic exclusive file-based locking with stale lock detection via PID checking.
+
+#### 7. CLI (`src/cli.ts`)
+
+Command-line interface with commands: store, get, search, delete, count, keys,
+stats, verify, compact, wal.
 
 ### Data Flow
 
 **Store Operation:**
 
 ```
-User Input → Generate Embedding → Append to JSONL → Success
+User Input → Generate Embedding → Lock → Write Data → fsync →
+Write WAL → fsync → Update Index → Unlock → Emit 'store'
 ```
 
 **Search Operation:**
 
 ```
-Query → Generate Embedding → Read File (Chunked) →
-Calculate Similarities → CandidateSet (Top-N) → Return Results
+Query → Generate Embedding → Ensure HNSW Index →
+HNSW Search → Filter by minSimilarity → Sort → Emit 'search'
 ```
 
 **Get Operation:**
 
 ```
-Key → Read File (Chunked) → Find First Match → Return Entry
+Key → KeyIndex Lookup (O(1)) → Read Record at Offset → Return Entry
 ```
 
 ## File Structure
 
 ```
 src/
-├── commands/           # CLI command implementations
-│   ├── flags.ts       # Shared CLI flags (--storePath)
-│   ├── get.ts         # Get command
-│   ├── search.ts      # Search command
-│   └── store.ts       # Store command
-├── candidate-set.ts   # Top-N search results data structure
-├── cli.ts             # CLI entry point
-├── embedding-file-reader.ts  # Efficient file reading
-├── engine.ts          # Core EmbeddingEngine class
-├── index.ts           # Library export
-└── types.ts           # TypeScript definitions
+├── commands/                  # CLI command implementations
+│   ├── flags.ts              # Shared CLI flags (--storePath)
+│   ├── compact.ts            # Compact command
+│   ├── count.ts              # Count command
+│   ├── delete.ts             # Delete command
+│   ├── get.ts                # Get command
+│   ├── keys.ts               # Keys command
+│   ├── search.ts             # Search command
+│   ├── stats.ts              # Stats command
+│   ├── store.ts              # Store command
+│   ├── verify.ts             # Verify command
+│   ├── wal.ts                # WAL display command
+│   └── index.ts              # Command exports
+├── storage-engine/            # Storage layer
+│   ├── storage-engine.ts     # WAL-based storage orchestrator
+│   ├── hnsw-index.ts         # HNSW approximate nearest neighbor search
+│   ├── hnsw-persistence.ts   # HNSW index serialization/deserialization
+│   ├── key-index.ts          # In-memory key → location map
+│   ├── wal.ts                # Write-ahead log
+│   ├── data-format.ts        # Binary serialization with CRC32
+│   ├── file-lock.ts          # File-based locking with stale detection
+│   ├── integrity.ts          # Database integrity verification
+│   ├── dimension-mismatch-error.ts  # Dimension validation error
+│   ├── constants.ts          # Magic numbers, sizes
+│   ├── types.ts              # Storage-layer types
+│   └── index.ts              # Storage exports
+├── candidate-set.ts          # Top-N search results data structure
+├── cli.ts                    # CLI entry point
+├── engine.ts                 # Core EmbeddingEngine class (extends EventEmitter)
+├── key-not-found-error.ts    # KeyNotFoundError class
+├── lru-cache.ts              # Generic LRU cache
+├── index.ts                  # Library exports
+└── types.ts                  # TypeScript definitions
 ```
 
 ## Development Workflows
@@ -153,23 +194,24 @@ bun run build        # Build for distribution (ESM + CJS + types)
 
 ### Modifying Storage Format
 
-- Update `EmbeddingEntry` type in `src/types.ts`
-- Modify `store()` method in `src/engine.ts`
-- Update `EmbeddingFileReader` parsing in `src/embedding-file-reader.ts`
-- Add migration logic if needed
+- Update types in `src/storage-engine/types.ts`
+- Modify `serializeDataRecord` / `deserializeDataRecord` in
+  `src/storage-engine/data-format.ts`
+- Update `StorageEngine` methods in `src/storage-engine/storage-engine.ts`
+- Add migration logic if needed (see `ensureV2Format`)
 
 ### Changing Embedding Model
 
-- Update FastEmbed initialization in `src/engine.ts`
-- Update dimension references (currently 768 for BGE-Base-EN)
-- Clear `local_cache/` to download new model
+- Update node-llama-cpp model initialization in `src/engine.ts`
+- Update `defaultDimension` constant (currently 384 for BGE-Small-EN-V1.5)
+- Clear `.cache/models/` to download new model
 - Update README with new model details
+- Or: use the `embeddingProvider` option in `EngineOptions` for custom models
 
 ### Adding New Search Filters
 
 - Extend `SearchOptions` in `src/types.ts`
 - Modify `search()` method in `src/engine.ts`
-- Update `EmbeddingFileReader` if needed for filtering
 - Add CLI flags in `src/commands/search.ts`
 
 ## Code Style and Conventions
@@ -212,7 +254,24 @@ Each component has a corresponding `.test.ts` file:
 
 - `engine.test.ts` - Core engine functionality
 - `candidate-set.test.ts` - CandidateSet behavior
-- `embedding-file-reader.test.ts` - File reading logic
+- `lru-cache.test.ts` - LRU cache behavior
+- `embedding-provider.test.ts` - Custom provider integration
+- `byoe.test.ts` - Bring-your-own-embeddings
+- `update.test.ts` - Update method
+- `events.test.ts` - EventEmitter events
+- `search-enrichment.test.ts` - DetailedSearchResult
+- `streaming.test.ts` - Async iterators
+- `batch-search.test.ts` - Batch search
+- `stats.test.ts` - Database statistics
+- `backup.test.ts` - Backup & restore
+- `storage-engine/hnsw-index.test.ts` - HNSW index
+- `storage-engine/hnsw-persistence.test.ts` - HNSW serialization
+- `storage-engine/integrity.test.ts` - Integrity verification
+- `storage-engine/compaction.test.ts` - Compaction
+- `storage-engine/dimension-mismatch-error.test.ts` - Dimension validation
+- `storage-engine/stale-lock.test.ts` - Stale lock detection
+- `storage-engine/integration/*.test.ts` - Integration tests (baseline,
+  concurrency, corruption, crash, locking, recovery, etc.)
 
 ### Testing Patterns
 
@@ -261,23 +320,27 @@ To release: `git tag v3.0.0 && git push --tags`
 
 ## Storage Format
 
-### JSONL Structure
+### Binary Format (`.raptor`)
 
-Each line is a JSON object:
+Records are stored in a binary format with CRC32 checksums:
 
-```json
-{"key":"doc1","text":"original text","embedding":[0.1,0.2,...],"timestamp":1234567890}
 ```
+Record: magic(4) + version(2) + opType(1) + flags(1) + seqNum(8) +
+        timestamp(8) + keyLen(2) + key(N) + dimension(4) +
+        embedding(D*4) + checksum(4) + trailer(4)
+```
+
+WAL entries are fixed 48-byte records for durability.
 
 ### Important Notes
 
-- **Append-only**: New entries are always appended
-- **Deduplication**: Most recent entry for a key wins
-- **Default Path**: `./database.jsonl`
+- **WAL-based durability**: Write-ahead log ensures crash safety
+- **Deduplication**: Most recent entry for a key wins (by sequence number)
+- **Default Path**: `./database.raptor`
 - **Embedding Dimensions**: 384 (BGE-Small-EN-V1.5 model)
-- **Dimension Validation**: `DimensionMismatchError` thrown when embedding
-  dimensions don't match
-- **No Deletion**: To "delete", append new entry with same key
+- **Dimension Validation**: `DimensionMismatchError` thrown on mismatch
+- **Logical Deletion**: Delete markers recorded, compaction reclaims space
+- **Compaction**: `compact()` rewrites only live records
 
 ## API Reference
 
@@ -287,57 +350,74 @@ Each line is a JSON object:
 import { EmbeddingEngine } from 'olingo'
 
 const engine = new EmbeddingEngine({
-  storePath: './my-database.jsonl'
+  storePath: './my-database.raptor'
 })
 
 // Store
 await engine.store('doc1', 'Machine learning is awesome')
+await engine.storeMany([{ key: 'doc2', text: 'Deep learning' }])
 
 // Search
-const results = await engine.search('AI and ML', 5, 0.7)
-// Returns: Array<{ key: string, similarity: number }>
+const results = await engine.search('AI and ML', {
+  limit: 5,
+  minSimilarity: 0.7
+})
+const batchResults = await engine.searchMany(['AI', 'ML'], 5, 0.7)
 
-// Get
+// CRUD
 const entry = await engine.get('doc1')
-// Returns: { key, text, embedding, timestamp } | null
+await engine.update('doc1', 'Updated text')
+await engine.delete('doc1')
+
+// Management
+const stats = await engine.stats()
+await engine.compact()
+const verifyResult = await engine.verify()
+await engine.backup('./backup.raptor')
+
+// Always dispose when done
+await engine.dispose()
 ```
 
 ### CLI Usage
 
 ```bash
-# Store
+# Data operations
 olingo store doc1 "Machine learning is awesome"
-
-# Search (max 5 results, min 0.7 similarity)
 olingo search "AI and ML" --limit 5 --minSimilarity 0.7
-
-# Get
 olingo get doc1
+olingo delete doc1
+
+# Database management
+olingo count
+olingo keys
+olingo stats
+olingo verify
+olingo compact
 
 # Custom database path
-olingo store doc1 "text" --storePath ./custom.jsonl
+olingo store doc1 "text" --storePath ./custom.raptor
 ```
 
 ## Performance Considerations
 
-### Memory Efficiency
+### Search Performance
 
-- **Chunked Reading**: Reads 64KB chunks instead of entire file
-- **Streaming**: Uses async generators to avoid loading all entries
-- **Early Termination**: Stops reading when enough results found
+- **HNSW Index**: O(log N) approximate nearest neighbor search
+- **Persistent HNSW**: Index saved to `.raptor-hnsw` sidecar, loaded on startup
+- **Key Lookup**: O(1) via in-memory KeyIndex
 
-### Optimization Opportunities
+### Write Performance
 
-- **Index Creation**: Add in-memory index for faster lookups
-- **Batch Operations**: Support bulk store operations
-- **Compression**: Compress JSONL file for storage savings
-- **Caching**: Cache frequently accessed embeddings
+- **Operation-level locking**: Locks acquired per write, not held across session
+- **WAL-based durability**: fsync after each write for crash safety
+- **Batch operations**: `storeMany()` for bulk inserts
 
-### Scalability Limits
+### Memory
 
-- JSONL format is linear scan O(n)
-- Search performance degrades with file size
-- Consider migration to indexed format for >100K entries
+- **HNSW index**: Loaded entirely in memory
+- **LRU cache**: Optional embedding cache (`embeddingCacheSize`)
+- **Compaction**: `compact()` reclaims space from deleted/updated records
 
 ## Troubleshooting
 
@@ -345,21 +425,21 @@ olingo store doc1 "text" --storePath ./custom.jsonl
 
 **"Model not found" error:**
 
-- FastEmbed downloads model on first use to `local_cache/`
+- node-llama-cpp downloads BGE-Small-EN-V1.5 model on first use to
+  `.cache/models/`
 - Ensure internet connectivity on first run
-- Check disk space for ~200MB model
+- Check disk space for ~67MB model
+
+**Stale lock file:**
+
+- Olingo auto-detects stale locks via PID checking
+- If a process crashes, the lock is recovered automatically on next access
 
 **Slow searches:**
 
-- JSONL scans entire file for search
-- Consider reducing file size or adding indexes
-- Use higher `minSimilarity` threshold to reduce candidates
-
-**Out of memory:**
-
-- Check file size - may need chunking optimization
-- Reduce batch size in `EmbeddingFileReader`
-- Consider splitting database into multiple files
+- HNSW index is built lazily on first search (can be slow for large databases)
+- Subsequent searches use the persistent HNSW index from disk
+- Use `compact()` to remove dead records and reduce index size
 
 **Type errors:**
 

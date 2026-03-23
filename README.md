@@ -263,8 +263,59 @@ Retrieve a specific entry by key.
 const entry = await engine.get('doc1')
 if (entry) {
   console.log(entry.key) // 'doc1'
-  console.log(entry.embedding) // [0.1, 0.2, ...] (768 dimensions)
+  console.log(entry.embedding) // Float32Array (384 dimensions)
 }
+```
+
+#### `delete(key)`
+
+Delete an entry by key. Returns `true` if the entry was deleted, `false` if it
+didn't exist.
+
+```typescript
+const deleted = await engine.delete('doc1')
+```
+
+#### `has(key)`
+
+Check if a key exists in the database.
+
+```typescript
+const exists = await engine.has('doc1')
+```
+
+#### `count()`
+
+Get the number of live entries in the database.
+
+```typescript
+const count = await engine.count()
+```
+
+#### `keys()`
+
+Get all keys in the database as an array.
+
+```typescript
+const keys = await engine.keys()
+```
+
+#### `generateEmbedding(text)`
+
+Generate an embedding for a text string without storing it.
+
+```typescript
+const embedding = await engine.generateEmbedding('hello world')
+// Returns number[] (384 dimensions)
+```
+
+#### `dispose()`
+
+Dispose of the engine and release all resources. **Always call this when done**
+to properly clean up native resources and persist the HNSW index.
+
+```typescript
+await engine.dispose()
 ```
 
 ## CLI Reference
@@ -272,14 +323,19 @@ if (entry) {
 ### Commands
 
 ```bash
-# Store text
-olingo store <key> <text> [--storePath path]
+# Data operations
+olingo store <key> <text> [--storePath path]    # Store text with embedding
+olingo search <query> [options] [--storePath]    # Semantic search
+olingo get <key> [--storePath path]              # Retrieve by key
+olingo delete <key> [--storePath path]           # Delete by key
 
-# Search for similar text
-olingo search <query> [--limit 10] [--minSimilarity 0] [--storePath path]
-
-# Get by key
-olingo get <key> [--storePath path]
+# Database management
+olingo count [--storePath path]                  # Show record count
+olingo keys [--storePath path]                   # List all keys
+olingo stats [--storePath path]                  # Show database statistics
+olingo verify [--storePath path]                 # Check database integrity
+olingo compact [--storePath path]                # Remove dead records
+olingo wal [--storePath path]                    # Display WAL entries
 ```
 
 ### Options
@@ -308,61 +364,18 @@ olingo store key1 "Some text" --storePath ./data/custom.raptor
 
 ## How It Works
 
-1. **Text → Embeddings**: Olingo uses the BGE-Base-EN model to convert text into
-   768-dimensional vector embeddings
-2. **Storage**: Embeddings are stored in an efficient binary format (.raptor
-   files)
-3. **Search**: When you search, Olingo compares your query embedding against all
-   stored embeddings using cosine similarity
-4. **Results**: Returns the most similar results ranked by similarity score
+1. **Text → Embeddings**: Olingo uses the BGE-Small-EN-V1.5 model to convert
+   text into 384-dimensional vector embeddings
+2. **Storage**: Embeddings are stored in a WAL-based binary format (`.raptor`
+   files) with CRC32 checksums for integrity
+3. **Search**: Queries are compared against stored embeddings using an HNSW
+   (Hierarchical Navigable Small World) index for fast approximate nearest
+   neighbor search
+4. **Results**: Returns the most similar results ranked by cosine similarity
 
 **Embedding Model**:
-[BAAI/bge-base-en](https://huggingface.co/BAAI/bge-base-en-v1.5) (768
-dimensions)
-
-## Performance
-
-- **Batch operations**: Use `storeMany()` for faster bulk inserts
-- **Memory efficient**: Reads file in 64KB chunks, handles large databases
-- **Fast search**: Cosine similarity comparison across all embeddings
-- **Deduplication**: Latest entry automatically used for duplicate keys
-- **Embedding cache**: Use `embeddingCacheSize` to cache text-to-embedding
-  mappings and avoid regenerating embeddings for repeated text inputs (~1.7KB
-  per cached entry)
-
-<details>
-<summary><strong>Bundler Configuration</strong></summary>
-
-This library uses `node-llama-cpp` which includes native bindings. When
-bundling, mark these packages as external:
-
-```js
-// esbuild
-{
-  external: ['node-llama-cpp', '@node-llama-cpp/*']
-}
-
-// Vite
-{
-  build: {
-    rollupOptions: {
-      external: ['node-llama-cpp', /^@node-llama-cpp\/.*/]
-    }
-  }
-}
-
-// Webpack
-{
-  externals: ['node-llama-cpp', /^@node-llama-cpp\/.*/]
-}
-
-// Rollup
-{
-  external: ['node-llama-cpp', /^@node-llama-cpp\/.*/]
-}
-```
-
-</details>
+[BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) (384
+dimensions, ~67MB)
 
 #### `backup(destPath)`
 
@@ -447,14 +460,43 @@ loaded.
 
 ## Performance
 
-### Persistent HNSW Index
+- **HNSW search index**: Fast approximate nearest neighbor search via persistent
+  HNSW index (saved to `.raptor-hnsw` sidecar file, loaded on startup)
+- **Batch operations**: Use `storeMany()` for faster bulk inserts
+- **WAL-based durability**: Write-ahead log ensures crash safety
+- **Embedding cache**: Use `embeddingCacheSize` to cache text-to-embedding
+  mappings (~1.5KB per cached entry)
+- **Deduplication**: Latest entry automatically used for duplicate keys
+- **Compaction**: Use `compact()` to reclaim space from deleted records
 
-Olingo automatically persists the HNSW search index to a `.raptor-hnsw` sidecar
-file. On startup, if the sidecar exists and is not stale, the index is loaded
-from disk instead of being rebuilt from all records. This significantly improves
-cold start times for large databases.
+<details>
+<summary><strong>Bundler Configuration</strong></summary>
 
-The index is saved automatically when calling `dispose()`.
+This library uses `node-llama-cpp` which includes native bindings. When
+bundling, mark these packages as external:
+
+```js
+// esbuild
+{
+  external: ['node-llama-cpp', '@node-llama-cpp/*']
+}
+
+// Vite
+{
+  build: {
+    rollupOptions: {
+      external: ['node-llama-cpp', /^@node-llama-cpp\/.*/]
+    }
+  }
+}
+
+// Webpack
+{
+  externals: ['node-llama-cpp', /^@node-llama-cpp\/.*/]
+}
+```
+
+</details>
 
 ## Multi-Process Safety
 
