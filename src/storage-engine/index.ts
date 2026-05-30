@@ -13,6 +13,7 @@ export {
   LockPermissionError
 } from './file-lock'
 export { Mutex } from './mutex'
+export { ensureParentDir } from './ensure-dir'
 export { DimensionMismatchError } from './dimension-mismatch-error'
 export { verifyDatabase } from './integrity'
 export type { CompactionResult, VerifyResult, VerifyIssue } from './types'

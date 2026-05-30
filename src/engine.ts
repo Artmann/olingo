@@ -12,6 +12,7 @@ import invariant from 'tiny-invariant'
 import {
   StorageEngine,
   ensureV2Format,
+  ensureParentDir,
   opType,
   ReadOnlyError,
   verifyDatabase
@@ -24,14 +25,7 @@ import {
   deserializeHnswIndex
 } from './storage-engine/hnsw-persistence'
 import { LRUCache } from './lru-cache'
-import {
-  copyFile,
-  readFile,
-  writeFile,
-  mkdir as mkdirFs,
-  stat
-} from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { copyFile, readFile, writeFile, stat } from 'node:fs/promises'
 import type {
   DatabaseStats,
   DetailedSearchResult,
@@ -550,6 +544,120 @@ export class EmbeddingEngine extends EventEmitter {
   }
 
   /**
+   * Finds the documents most similar to an existing key.
+   *
+   * Uses the stored embedding of `key` as the query vector, so no embedding is
+   * generated. The source key is excluded from its own results.
+   *
+   * @param key - Key of an existing entry to find neighbors for
+   * @returns Array of search results sorted by similarity (highest first)
+   * @throws KeyNotFoundError if the key does not exist
+   */
+  async similarTo(
+    key: string,
+    options: SearchOptions & { includeDetails: true }
+  ): Promise<DetailedSearchResult[]>
+  async similarTo(key: string, options?: SearchOptions): Promise<SearchResult[]>
+  async similarTo(
+    key: string,
+    limit?: number,
+    minSimilarity?: number
+  ): Promise<SearchResult[]>
+  async similarTo(
+    key: string,
+    limitOrOptions?: number | SearchOptions,
+    minSimilarityArg?: number
+  ): Promise<SearchResult[] | DetailedSearchResult[]> {
+    let limit: number
+    let minSimilarity: number
+    let includeDetails: boolean
+
+    if (typeof limitOrOptions === 'object' && limitOrOptions !== null) {
+      limit = limitOrOptions.limit ?? 10
+      minSimilarity = limitOrOptions.minSimilarity ?? 0.5
+      includeDetails = limitOrOptions.includeDetails ?? false
+    } else {
+      limit = limitOrOptions ?? 10
+      minSimilarity = minSimilarityArg ?? 0.5
+      includeDetails = false
+    }
+
+    invariant(key, 'Key must be provided.')
+    invariant(limit > 0, 'Limit must be a positive integer.')
+    invariant(
+      minSimilarity >= 0 && minSimilarity <= 1,
+      'minSimilarity must be between 0 and 1.'
+    )
+
+    const storage = await this.ensureStorageEngine()
+
+    if (storage.count() === 0) {
+      return []
+    }
+
+    const record = await storage.readRecord(key)
+    if (!record) {
+      throw new KeyNotFoundError(key)
+    }
+
+    const queryEmbedding = new Float32Array(record.embedding)
+    const hnswIndex = await this.ensureHnswIndex(storage)
+
+    // Overscan to handle minSimilarity filtering post-retrieval. The extra +1
+    // covers the source key, which is excluded from the results below.
+    const overscan = Math.max(limit * 3, limit + 20) + 1
+    const candidateKeys = hnswIndex.search(Array.from(queryEmbedding), overscan)
+
+    let queryNorm = 0
+    if (includeDetails) {
+      for (let i = 0; i < queryEmbedding.length; i++) {
+        queryNorm += queryEmbedding[i] * queryEmbedding[i]
+      }
+      queryNorm = Math.sqrt(queryNorm)
+    }
+
+    const results: Array<SearchResult | DetailedSearchResult> = []
+    for (const candidateKey of candidateKeys) {
+      if (candidateKey === key) {
+        continue
+      }
+      const vec = hnswIndex.getVector(candidateKey)
+      if (!vec) {
+        continue
+      }
+      const resultEmbedding = new Float32Array(vec)
+      const similarity = this.cosineSimilarity(queryEmbedding, resultEmbedding)
+      if (similarity >= minSimilarity) {
+        if (includeDetails) {
+          let dotProduct = 0
+          let resultNorm = 0
+          for (let i = 0; i < queryEmbedding.length; i++) {
+            dotProduct += queryEmbedding[i] * resultEmbedding[i]
+            resultNorm += resultEmbedding[i] * resultEmbedding[i]
+          }
+          resultNorm = Math.sqrt(resultNorm)
+          results.push({
+            key: candidateKey,
+            similarity,
+            queryNorm,
+            resultNorm,
+            dotProduct
+          } as DetailedSearchResult)
+        } else {
+          results.push({ key: candidateKey, similarity })
+        }
+      }
+    }
+
+    results.sort((a, b) => b.similarity - a.similarity)
+    const finalResults = results.slice(0, limit)
+
+    this.emit('similarTo', { key, resultCount: finalResults.length })
+
+    return finalResults
+  }
+
+  /**
    * Stores a text embedding with WAL-based durability
    * @param key - Unique identifier for this entry
    * @param text - Text to embed and store
@@ -876,7 +984,7 @@ export class EmbeddingEngine extends EventEmitter {
    */
   async backup(destPath: string): Promise<void> {
     // Ensure destination directory exists
-    await mkdirFs(dirname(destPath), { recursive: true })
+    await ensureParentDir(destPath)
 
     // Ensure storage is initialized
     await this.ensureStorageEngine()

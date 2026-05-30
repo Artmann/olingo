@@ -42,11 +42,13 @@ The main class (extends `EventEmitter`) that orchestrates all operations:
   missing)
 - `get(key)` / `has(key)` / `keys()` / `count()` - Lookup operations
 - `search(query, options)` / `searchMany(queries)` - Semantic search
+- `similarTo(key, options)` - Find documents most similar to an existing key
+  (uses the key's stored embedding; excludes the key itself)
 - `keysIterator()` / `searchStream()` - Async iterators for streaming
 - `delete(key)` - Logical delete
 - `stats()` / `verify()` / `compact()` / `backup()` - Database management
 - `dispose()` - Cleanup resources and persist HNSW index
-- Emits events: `store`, `update`, `delete`, `search`
+- Emits events: `store`, `update`, `delete`, `search`, `similarTo`
 
 #### 2. StorageEngine (`src/storage-engine/storage-engine.ts`)
 
@@ -79,8 +81,8 @@ Atomic exclusive file-based locking with stale lock detection via PID checking.
 
 #### 7. CLI (`src/cli.ts`)
 
-Command-line interface with commands: store, get, search, delete, count, keys,
-stats, verify, compact, wal.
+Command-line interface with commands: store, get, search, similar-to, delete,
+count, keys, stats, verify, compact, wal.
 
 ### Data Flow
 
@@ -385,6 +387,7 @@ await engine.dispose()
 # Data operations
 olingo store doc1 "Machine learning is awesome"
 olingo search "AI and ML" --limit 5 --minSimilarity 0.7
+olingo similar-to doc1 --limit 5
 olingo get doc1
 olingo delete doc1
 
@@ -468,6 +471,27 @@ await open(path, 'wx') // 'wx' = O_CREAT | O_EXCL | O_WRONLY
 ```
 
 This affects the `FileLock` class in `src/storage-engine/file-lock.ts`.
+
+**`mkdir('.', { recursive: true })` bug:**
+
+Bun on Windows has a bug where `fs.mkdir('.', { recursive: true })` throws
+`ENOENT` (on Node it is a successful no-op). This is triggered whenever a store
+path has no directory component (e.g. `database.raptor`), since `dirname()`
+returns `'.'`. The workaround is to resolve to an absolute path before calling
+`mkdir`:
+
+```typescript
+// Broken on Bun/Windows when dirname is '.':
+await mkdir(dirname(filePath), { recursive: true })
+
+// Works everywhere:
+import { resolve, dirname } from 'node:path'
+await mkdir(resolve(dirname(filePath)), { recursive: true })
+```
+
+All directory creation goes through the `ensureParentDir()` helper in
+`src/storage-engine/ensure-dir.ts`, which applies this workaround. Use it
+instead of calling `mkdir` directly.
 
 ## Additional Resources
 

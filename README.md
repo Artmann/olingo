@@ -72,6 +72,10 @@ await engine.storeMany([
 const results = await engine.search('forgot my password', 5)
 console.log(results[0].key) // 'doc1' - matched by meaning!
 console.log(results[0].similarity) // 0.87 - high similarity score
+
+// "More like this" — find documents similar to an existing one
+const similar = await engine.similarTo('doc1', 5)
+console.log(similar[0].key) // most similar document to doc1
 ```
 
 ### Command Line Interface
@@ -83,6 +87,9 @@ olingo store doc2 "Machine learning basics"
 
 # Search by meaning
 olingo search "forgot my password" --limit 5
+
+# Find documents similar to an existing key ("more like this")
+olingo similar-to doc1 --limit 5
 
 # Retrieve by key
 olingo get doc1
@@ -175,6 +182,25 @@ const detailed = await engine.search('artificial intelligence', {
 detailed.forEach((r) => {
   console.log(r.key, r.similarity)
   console.log(r.queryNorm, r.resultNorm, r.dotProduct)
+})
+```
+
+#### `similarTo(key, limit?, minSimilarity?)` / `similarTo(key, options?)`
+
+Find the documents most similar to an existing key, using that entry's stored
+embedding as the query. The source key is excluded from its own results. Throws
+`KeyNotFoundError` if the key doesn't exist. Accepts the same arguments and
+returns the same shape as `search()`.
+
+```typescript
+// Positional arguments
+const neighbors = await engine.similarTo('doc1', 5, 0.7)
+
+// SearchOptions object (incl. includeDetails)
+const detailed = await engine.similarTo('doc1', {
+  limit: 5,
+  minSimilarity: 0.7,
+  includeDetails: true
 })
 ```
 
@@ -326,6 +352,7 @@ await engine.dispose()
 # Data operations
 olingo store <key> <text> [--storePath path]    # Store text with embedding
 olingo search <query> [options] [--storePath]    # Semantic search
+olingo similar-to <key> [options] [--storePath]  # Find similar to existing key
 olingo get <key> [--storePath path]              # Retrieve by key
 olingo delete <key> [--storePath path]           # Delete by key
 
@@ -357,6 +384,9 @@ olingo search "artificial intelligence"
 
 # Search with custom limit and threshold
 olingo search "AI and ML" --limit 3 --minSimilarity 0.7
+
+# Find documents most similar to an existing key
+olingo similar-to doc2 --limit 5
 
 # Use custom database path
 olingo store key1 "Some text" --storePath ./data/custom.raptor
@@ -423,6 +453,9 @@ engine.on('update', ({ key }) => console.log(`Updated: ${key}`))
 engine.on('delete', ({ key }) => console.log(`Deleted: ${key}`))
 engine.on('search', ({ query, resultCount }) =>
   console.log(`Search: "${query}" → ${resultCount} results`)
+)
+engine.on('similarTo', ({ key, resultCount }) =>
+  console.log(`Similar to "${key}" → ${resultCount} results`)
 )
 ```
 
