@@ -178,6 +178,25 @@ detailed.forEach((r) => {
 })
 ```
 
+#### `similarTo(key, limit?, minSimilarity?)` / `similarTo(key, options?)`
+
+Find the documents most similar to an existing key, using that entry's stored
+embedding as the query. The source key is excluded from its own results. Throws
+`KeyNotFoundError` if the key doesn't exist. Accepts the same arguments and
+returns the same shape as `search()`.
+
+```typescript
+// Positional arguments
+const neighbors = await engine.similarTo('doc1', 5, 0.7)
+
+// SearchOptions object (incl. includeDetails)
+const detailed = await engine.similarTo('doc1', {
+  limit: 5,
+  minSimilarity: 0.7,
+  includeDetails: true
+})
+```
+
 #### `update(key, text)`
 
 Update the text for an existing key. Throws `KeyNotFoundError` if the key
@@ -326,6 +345,7 @@ await engine.dispose()
 # Data operations
 olingo store <key> <text> [--storePath path]    # Store text with embedding
 olingo search <query> [options] [--storePath]    # Semantic search
+olingo similar-to <key> [options] [--storePath]  # Find similar to existing key
 olingo get <key> [--storePath path]              # Retrieve by key
 olingo delete <key> [--storePath path]           # Delete by key
 
@@ -357,6 +377,9 @@ olingo search "artificial intelligence"
 
 # Search with custom limit and threshold
 olingo search "AI and ML" --limit 3 --minSimilarity 0.7
+
+# Find documents most similar to an existing key
+olingo similar-to doc2 --limit 5
 
 # Use custom database path
 olingo store key1 "Some text" --storePath ./data/custom.raptor
@@ -423,6 +446,9 @@ engine.on('update', ({ key }) => console.log(`Updated: ${key}`))
 engine.on('delete', ({ key }) => console.log(`Deleted: ${key}`))
 engine.on('search', ({ query, resultCount }) =>
   console.log(`Search: "${query}" → ${resultCount} results`)
+)
+engine.on('similarTo', ({ key, resultCount }) =>
+  console.log(`Similar to "${key}" → ${resultCount} results`)
 )
 ```
 

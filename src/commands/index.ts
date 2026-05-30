@@ -1,6 +1,7 @@
 export { store } from './store'
 export { get } from './get'
 export { search } from './search'
+export { similarToCommand } from './similar-to'
 export { deleteCmd } from './delete'
 export { walCmd } from './wal'
 export { verifyCommand } from './verify'
