@@ -72,6 +72,10 @@ await engine.storeMany([
 const results = await engine.search('forgot my password', 5)
 console.log(results[0].key) // 'doc1' - matched by meaning!
 console.log(results[0].similarity) // 0.87 - high similarity score
+
+// "More like this" — find documents similar to an existing one
+const similar = await engine.similarTo('doc1', 5)
+console.log(similar[0].key) // most similar document to doc1
 ```
 
 ### Command Line Interface
@@ -83,6 +87,9 @@ olingo store doc2 "Machine learning basics"
 
 # Search by meaning
 olingo search "forgot my password" --limit 5
+
+# Find documents similar to an existing key ("more like this")
+olingo similar-to doc1 --limit 5
 
 # Retrieve by key
 olingo get doc1
