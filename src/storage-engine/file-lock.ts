@@ -1,5 +1,5 @@
-import { mkdir, open, readFile, rm } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { open, readFile, rm } from 'node:fs/promises'
+import { ensureParentDir } from './ensure-dir'
 
 const defaultLockTimeout = 10_000
 const retryInterval = 100
@@ -32,7 +32,7 @@ export class FileLock {
     }
 
     // Ensure parent directory exists
-    await mkdir(dirname(this.filePath), { recursive: true })
+    await ensureParentDir(this.filePath)
 
     const startTime = Date.now()
 

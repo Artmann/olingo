@@ -472,6 +472,27 @@ await open(path, 'wx') // 'wx' = O_CREAT | O_EXCL | O_WRONLY
 
 This affects the `FileLock` class in `src/storage-engine/file-lock.ts`.
 
+**`mkdir('.', { recursive: true })` bug:**
+
+Bun on Windows has a bug where `fs.mkdir('.', { recursive: true })` throws
+`ENOENT` (on Node it is a successful no-op). This is triggered whenever a store
+path has no directory component (e.g. `database.raptor`), since `dirname()`
+returns `'.'`. The workaround is to resolve to an absolute path before calling
+`mkdir`:
+
+```typescript
+// Broken on Bun/Windows when dirname is '.':
+await mkdir(dirname(filePath), { recursive: true })
+
+// Works everywhere:
+import { resolve, dirname } from 'node:path'
+await mkdir(resolve(dirname(filePath)), { recursive: true })
+```
+
+All directory creation goes through the `ensureParentDir()` helper in
+`src/storage-engine/ensure-dir.ts`, which applies this workaround. Use it
+instead of calling `mkdir` directly.
+
 ## Additional Resources
 
 - **CODE_STYLE.md** - Detailed code style guide and conventions

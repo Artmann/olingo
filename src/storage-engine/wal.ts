@@ -6,10 +6,10 @@
  * is scanned to rebuild the in-memory index.
  */
 
-import { open, stat, mkdir } from 'node:fs/promises'
+import { open, stat } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import { walEntrySize } from './constants'
+import { ensureParentDir } from './ensure-dir'
 import { serializeWalEntry, deserializeWalEntry } from './wal-format'
 import { ReadOnlyError } from './file-lock'
 import type { WalEntry } from './types'
@@ -36,7 +36,7 @@ export class Wal {
     const buffer = serializeWalEntry(entry)
 
     // Ensure directory exists
-    await mkdir(dirname(this.filePath), { recursive: true })
+    await ensureParentDir(this.filePath)
 
     // Open file for appending if not already open
     this.fileHandle ??= await open(this.filePath, 'a')
@@ -61,7 +61,7 @@ export class Wal {
     }
 
     // Ensure directory exists
-    await mkdir(dirname(this.filePath), { recursive: true })
+    await ensureParentDir(this.filePath)
 
     // Open file for appending if not already open
     this.fileHandle ??= await open(this.filePath, 'a')

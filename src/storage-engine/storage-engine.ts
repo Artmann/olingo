@@ -8,9 +8,9 @@
  * and released immediately after, rather than held for the engine lifetime.
  */
 
-import { open, stat, mkdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { open, stat, rename, unlink, writeFile } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { ensureParentDir } from './ensure-dir'
 import {
   opType,
   fileExtensions,
@@ -94,7 +94,7 @@ export class StorageEngine {
 
     // Ensure directory exists (only for write mode)
     if (!readOnly) {
-      await mkdir(dirname(dataPath), { recursive: true })
+      await ensureParentDir(dataPath)
     } else {
       // In read-only mode, ensure the database exists
       const dataExists = await stat(dataPath).catch(() => null)
@@ -557,7 +557,7 @@ export class StorageEngine {
       }
 
       // Ensure directory exists
-      await mkdir(dirname(this.dataPath), { recursive: true })
+      await ensureParentDir(this.dataPath)
       const handle = await open(this.dataPath, 'r+').catch(async () => {
         // File doesn't exist, create it
         return open(this.dataPath, 'w+')

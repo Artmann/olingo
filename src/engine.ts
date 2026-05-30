@@ -12,6 +12,7 @@ import invariant from 'tiny-invariant'
 import {
   StorageEngine,
   ensureV2Format,
+  ensureParentDir,
   opType,
   ReadOnlyError,
   verifyDatabase
@@ -24,14 +25,7 @@ import {
   deserializeHnswIndex
 } from './storage-engine/hnsw-persistence'
 import { LRUCache } from './lru-cache'
-import {
-  copyFile,
-  readFile,
-  writeFile,
-  mkdir as mkdirFs,
-  stat
-} from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { copyFile, readFile, writeFile, stat } from 'node:fs/promises'
 import type {
   DatabaseStats,
   DetailedSearchResult,
@@ -990,7 +984,7 @@ export class EmbeddingEngine extends EventEmitter {
    */
   async backup(destPath: string): Promise<void> {
     // Ensure destination directory exists
-    await mkdirFs(dirname(destPath), { recursive: true })
+    await ensureParentDir(destPath)
 
     // Ensure storage is initialized
     await this.ensureStorageEngine()
