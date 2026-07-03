@@ -1,7 +1,7 @@
 import { command } from 'cleye'
 import { EmbeddingEngine } from '../engine'
 import { KeyNotFoundError } from '../key-not-found-error'
-import { sharedFlags, searchFlags } from './flags'
+import { sharedFlags, searchFlags, modelFromFlag } from './flags'
 
 export const similarToCommand = command(
   {
@@ -22,7 +22,8 @@ export const similarToCommand = command(
   },
   async (argv) => {
     const engine = new EmbeddingEngine({
-      storePath: argv.flags.storePath
+      storePath: argv.flags.storePath,
+      model: modelFromFlag(argv.flags.model)
     })
 
     try {

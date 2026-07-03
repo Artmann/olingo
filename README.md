@@ -135,6 +135,11 @@ const engine = new EmbeddingEngine({
 - `readOnly` - Open database in read-only mode (default: `false`)
 - `embeddingCacheSize` - Size of the LRU cache for text-to-embedding lookups
   (default: `0` = disabled)
+- `model` - Embedding model: a built-in preset name (`'bge-small-en'` |
+  `'bge-m3'`) or a custom `{ uri, dimension, maxTokens? }` GGUF config (default:
+  `'bge-small-en'`). Use `'bge-m3'` for non-English content. See
+  [Multilingual Content](#multilingual-content). Mutually exclusive with
+  `embeddingProvider`.
 - `embeddingProvider` - Custom embedding provider (optional). When provided, the
   default model is not loaded. See
   [Custom Embedding Providers](#custom-embedding-providers).
@@ -368,6 +373,8 @@ olingo wal [--storePath path]                    # Display WAL entries
 ### Options
 
 - `-s, --storePath` - Path to database file (default: `./database.raptor`)
+- `--model` - Embedding model preset: `bge-small-en` | `bge-m3` (default:
+  `bge-small-en`). Pass the same model on every invocation for a given store.
 - `-l, --limit` - Maximum results to return (default: 10)
 - `-m, --minSimilarity` - Minimum similarity threshold 0-1 (default: 0)
 
@@ -390,12 +397,17 @@ olingo similar-to doc2 --limit 5
 
 # Use custom database path
 olingo store key1 "Some text" --storePath ./data/custom.raptor
+
+# Use the multilingual model (pass --model on every command for that store)
+olingo store nyhet1 "Sverige vinner VM-guld i ishockey" --model bge-m3
+olingo search "hockey" --model bge-m3
 ```
 
 ## How It Works
 
-1. **Text → Embeddings**: Olingo uses the BGE-Small-EN-V1.5 model to convert
-   text into 384-dimensional vector embeddings
+1. **Text → Embeddings**: Olingo uses the BGE-Small-EN-V1.5 model (default) to
+   convert text into 384-dimensional vector embeddings; a multilingual BGE-M3
+   preset (1024 dimensions) and custom GGUF models are also supported
 2. **Storage**: Embeddings are stored in a WAL-based binary format (`.raptor`
    files) with CRC32 checksums for integrity
 3. **Search**: Queries are compared against stored embeddings using an HNSW
@@ -403,9 +415,13 @@ olingo store key1 "Some text" --storePath ./data/custom.raptor
    neighbor search
 4. **Results**: Returns the most similar results ranked by cosine similarity
 
-**Embedding Model**:
-[BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) (384
-dimensions, ~67MB)
+**Embedding Models**:
+
+- Default:
+  [BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5)
+  (English, 384 dimensions, ~67MB)
+- Multilingual: [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) (100+
+  languages, 1024 dimensions, ~635MB)
 
 #### `backup(destPath)`
 
@@ -458,6 +474,46 @@ engine.on('similarTo', ({ key, resultCount }) =>
   console.log(`Similar to "${key}" → ${resultCount} results`)
 )
 ```
+
+## Multilingual Content
+
+The default `bge-small-en` model is English-only — non-English text produces
+poor embeddings, so searches return near-identical results regardless of the
+query. For multilingual content, use the built-in `bge-m3` preset
+([BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3), 100+ languages, 1024
+dimensions, ~635MB download on first use):
+
+```typescript
+const engine = new EmbeddingEngine({
+  storePath: './articles.raptor',
+  model: 'bge-m3'
+})
+
+await engine.store('nyhet1', 'Sverige vinner VM-guld i ishockey')
+await engine.store('nyhet2', 'Ny forskning om klimatförändringar')
+
+const results = await engine.search('hockey')
+```
+
+You can also load any GGUF embedding model that node-llama-cpp supports by
+passing a custom config:
+
+```typescript
+const engine = new EmbeddingEngine({
+  storePath: './database.raptor',
+  model: {
+    uri: 'hf:user/repo/model-q8_0.gguf', // hf: URI or local file path
+    dimension: 768,
+    maxTokens: 2000 // Optional truncation limit (default: 500)
+  }
+})
+```
+
+**Switching models requires a new database.** A store is bound to a single
+embedding dimension, and stored embeddings from different models are not
+comparable. Opening a database with a different model than it was created with
+throws `DimensionMismatchError`. Olingo stores only embeddings (not the source
+text), so re-embed your content from its original source into a new store.
 
 ## Custom Embedding Providers
 

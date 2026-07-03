@@ -5,7 +5,8 @@
 **Olingo** is a lightweight embedding database for Node.js (>=18) and Bun (>=1)
 that stores text embeddings in a WAL-based binary format (`.raptor` files). It
 provides semantic search via HNSW (Hierarchical Navigable Small World) indexing
-with the BGE-Small-EN-V1.5 embedding model (384 dimensions).
+with the BGE-Small-EN-V1.5 embedding model (384 dimensions) by default, plus a
+multilingual BGE-M3 preset (1024 dimensions) and custom GGUF model support.
 
 **Key Features:**
 
@@ -22,7 +23,9 @@ with the BGE-Small-EN-V1.5 embedding model (384 dimensions).
 
 - Runtime: Node.js >=18, Bun >=1
 - Language: TypeScript
-- Embedding Model: node-llama-cpp (BAAI/bge-small-en-v1.5-gguf, 384 dimensions)
+- Embedding Models: node-llama-cpp (default: BAAI/bge-small-en-v1.5-gguf, 384
+  dimensions; multilingual preset: BAAI/bge-m3, 1024 dimensions; custom GGUF
+  models via the `model` option — presets defined in `src/models.ts`)
 - Build Tool: Rolldown
 - Test Framework: Vitest
 
@@ -141,6 +144,7 @@ src/
 ├── engine.ts                 # Core EmbeddingEngine class (extends EventEmitter)
 ├── key-not-found-error.ts    # KeyNotFoundError class
 ├── lru-cache.ts              # Generic LRU cache
+├── models.ts                 # Embedding model presets and model config resolution
 ├── index.ts                  # Library exports
 └── types.ts                  # TypeScript definitions
 ```
@@ -204,11 +208,15 @@ bun run build        # Build for distribution (ESM + CJS + types)
 
 ### Changing Embedding Model
 
-- Update node-llama-cpp model initialization in `src/engine.ts`
-- Update `defaultDimension` constant (currently 384 for BGE-Small-EN-V1.5)
-- Clear `.cache/models/` to download new model
-- Update README with new model details
-- Or: use the `embeddingProvider` option in `EngineOptions` for custom models
+- Use the `model` option in `EngineOptions`: a preset name (`'bge-small-en'` |
+  `'bge-m3'`) or a custom `{ uri, dimension, maxTokens? }` GGUF config
+- Presets are defined in `src/models.ts` (`modelPresets`); add new presets there
+- The CLI accepts `--model <preset>` on all commands
+- A database is bound to one dimension (stored in the file header); switching
+  models requires re-embedding into a new store (`DimensionMismatchError`
+  otherwise)
+- Or: use the `embeddingProvider` option in `EngineOptions` to bypass
+  node-llama-cpp entirely (mutually exclusive with `model`)
 
 ### Adding New Search Filters
 
@@ -339,7 +347,8 @@ WAL entries are fixed 48-byte records for durability.
 - **WAL-based durability**: Write-ahead log ensures crash safety
 - **Deduplication**: Most recent entry for a key wins (by sequence number)
 - **Default Path**: `./database.raptor`
-- **Embedding Dimensions**: 384 (BGE-Small-EN-V1.5 model)
+- **Embedding Dimensions**: 384 (default BGE-Small-EN-V1.5), 1024 (bge-m3), or
+  custom; fixed per database via the file header
 - **Dimension Validation**: `DimensionMismatchError` thrown on mismatch
 - **Logical Deletion**: Delete markers recorded, compaction reclaims space
 - **Compaction**: `compact()` rewrites only live records

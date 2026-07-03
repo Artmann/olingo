@@ -4,6 +4,8 @@ export {
   EmbeddingGenerationError
 } from './engine'
 export { LRUCache } from './lru-cache'
+export { modelPresets, modelPresetNames } from './models'
+export type { ModelConfig, ModelOption, ModelPresetName } from './models'
 export {
   ReadOnlyError,
   DatabaseLockedError,

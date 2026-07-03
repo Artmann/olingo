@@ -1,3 +1,5 @@
+import type { ModelOption } from './models'
+
 export interface EmbeddingEntry {
   key: string
   text: string
@@ -64,6 +66,12 @@ export interface EngineOptions {
   readOnly?: boolean
   /** Size of the LRU cache for text-to-embedding lookups (default: 0 = disabled) */
   embeddingCacheSize?: number
+  /**
+   * Embedding model: a built-in preset name ('bge-small-en' | 'bge-m3') or a
+   * custom { uri, dimension, maxTokens? } GGUF config (default: 'bge-small-en').
+   * Mutually exclusive with embeddingProvider.
+   */
+  model?: ModelOption
   /** Custom embedding provider. When provided, the default model is not loaded. */
   embeddingProvider?: EmbeddingProvider
 }

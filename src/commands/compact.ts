@@ -1,6 +1,6 @@
 import { command } from 'cleye'
 import { EmbeddingEngine } from '../engine'
-import { sharedFlags } from './flags'
+import { sharedFlags, modelFromFlag } from './flags'
 
 export const compactCommand = command(
   {
@@ -14,7 +14,10 @@ export const compactCommand = command(
   },
   async (argv) => {
     const storePath = argv.flags.storePath
-    const engine = new EmbeddingEngine({ storePath })
+    const engine = new EmbeddingEngine({
+      storePath,
+      model: modelFromFlag(argv.flags.model)
+    })
 
     try {
       const result = await engine.compact()
