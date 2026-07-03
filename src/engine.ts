@@ -4,7 +4,8 @@ import {
   resolveModelFile,
   type Llama,
   type LlamaModel,
-  type LlamaEmbeddingContext
+  type LlamaEmbeddingContext,
+  type Token
 } from 'node-llama-cpp'
 import { EventEmitter } from 'node:events'
 import invariant from 'tiny-invariant'
@@ -325,27 +326,28 @@ export class EmbeddingEngine extends EventEmitter {
   }
 
   /**
-   * Truncates text to fit within the model's context size
-   * Uses the model's tokenizer for accurate token counting
-   * The token limit comes from the model config (leaves room for special tokens)
+   * Tokenizes text for embedding, truncated to the model's token limit
+   * (leaves room for special tokens).
+   *
+   * Prepends the BOS/CLS token when the model metadata requires it:
+   * node-llama-cpp skips it for UGM vocabularies (XLM-RoBERTa models such as
+   * bge-m3, which expect `<s>` for CLS pooling), collapsing the embeddings of
+   * short texts. getEmbeddingFor() never double-adds it and still appends the
+   * end token itself, so models that already get a BOS are unaffected.
    */
-  private truncateToContextSize(text: string): string {
-    if (!this.model) {
-      // Fallback if model not loaded yet
-      const maxChars = 300 * 3
-      return text.length <= maxChars ? text : text.slice(0, maxChars)
+  private tokenizeForEmbedding(text: string): Token[] {
+    invariant(this.model, 'Model not initialized')
+
+    const tokens = this.model
+      .tokenize(text)
+      .slice(0, this.modelConfig.maxTokens)
+
+    const { bos, shouldPrependBosToken } = this.model.tokens
+    if (shouldPrependBosToken && bos !== null && tokens[0] !== bos) {
+      tokens.unshift(bos)
     }
 
-    const maxTokens = this.modelConfig.maxTokens
-    const tokens = this.model.tokenize(text)
-
-    if (tokens.length <= maxTokens) {
-      return text
-    }
-
-    // Truncate tokens and detokenize
-    const truncatedTokens = tokens.slice(0, maxTokens)
-    return this.model.detokenize(truncatedTokens)
+    return tokens
   }
 
   /**
@@ -380,17 +382,15 @@ export class EmbeddingEngine extends EventEmitter {
       await this.ensureModelLoaded()
       invariant(this.embeddingContext, 'Embedding context not initialized')
 
-      const truncatedText = this.truncateToContextSize(text)
+      const tokens = this.tokenizeForEmbedding(text)
 
       let embedding
       try {
-        embedding = await this.embeddingContext.getEmbeddingFor(truncatedText)
+        embedding = await this.embeddingContext.getEmbeddingFor(tokens)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         const textPreview =
-          truncatedText.length > 100
-            ? truncatedText.slice(0, 100) + '...'
-            : truncatedText
+          text.length > 100 ? text.slice(0, 100) + '...' : text
         throw new EmbeddingGenerationError(
           `Failed to generate embedding for text.\n\n` +
             `Text preview: "${textPreview}"\n` +
