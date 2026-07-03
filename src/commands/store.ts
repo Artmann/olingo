@@ -1,6 +1,6 @@
 import { command } from 'cleye'
 import { EmbeddingEngine } from '../engine'
-import { sharedFlags } from './flags'
+import { sharedFlags, modelFromFlag } from './flags'
 
 export const store = command(
   {
@@ -13,13 +13,15 @@ export const store = command(
       description: 'Store a text embedding with a key',
       examples: [
         'olingo store doc1 "Machine learning is awesome"',
-        'olingo store -s ./my-db.raptor mykey "Some text to embed"'
+        'olingo store -s ./my-db.raptor mykey "Some text to embed"',
+        'olingo store --model bge-m3 doc1 "Multilingual text to embed"'
       ]
     }
   },
   async (argv) => {
     const engine = new EmbeddingEngine({
-      storePath: argv.flags.storePath
+      storePath: argv.flags.storePath,
+      model: modelFromFlag(argv.flags.model)
     })
 
     try {

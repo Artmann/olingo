@@ -1,6 +1,6 @@
 import { command } from 'cleye'
 import { EmbeddingEngine } from '../engine'
-import { sharedFlags } from './flags'
+import { sharedFlags, modelFromFlag } from './flags'
 
 export const verifyCommand = command(
   {
@@ -14,7 +14,11 @@ export const verifyCommand = command(
   },
   async (argv) => {
     const storePath = argv.flags.storePath
-    const engine = new EmbeddingEngine({ storePath, readOnly: true })
+    const engine = new EmbeddingEngine({
+      storePath,
+      readOnly: true,
+      model: modelFromFlag(argv.flags.model)
+    })
 
     try {
       const result = await engine.verify()

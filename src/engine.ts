@@ -25,6 +25,8 @@ import {
   deserializeHnswIndex
 } from './storage-engine/hnsw-persistence'
 import { LRUCache } from './lru-cache'
+import { resolveModelConfig } from './models'
+import type { ResolvedModelConfig } from './models'
 import { copyFile, readFile, writeFile, stat } from 'node:fs/promises'
 import type {
   DatabaseStats,
@@ -36,11 +38,7 @@ import type {
   SearchResult
 } from './types'
 
-// Model URI for bge-small-en-v1.5 GGUF (384 dimensions, ~67MB)
-const defaultModelUri =
-  'hf:CompendiumLabs/bge-small-en-v1.5-gguf/bge-small-en-v1.5-q8_0.gguf'
 const defaultCacheDir = './.cache/models'
-const defaultDimension = 384
 
 /**
  * Error thrown when the embedding model fails to initialize.
@@ -103,19 +101,28 @@ export class EmbeddingEngine extends EventEmitter {
   private hnswIndex: HnswIndex | null = null
   // LRU cache for text-to-embedding lookups (avoids regenerating embeddings for repeated text)
   private textEmbeddingCache: LRUCache<string, Float32Array> | null = null
-  // Custom embedding provider (when set, the default model is not loaded)
+  // Custom embedding provider (when set, the built-in model is not loaded)
   private readonly customProvider: EmbeddingProvider | null = null
+  // Resolved built-in model config (unused when a custom provider is set)
+  private readonly modelConfig: ResolvedModelConfig
 
   constructor(options: EngineOptions) {
     super()
+    if (options.model && options.embeddingProvider) {
+      throw new Error(
+        'Cannot specify both model and embeddingProvider — ' +
+          'embeddingProvider replaces the built-in model entirely'
+      )
+    }
     this.storePath = options.storePath
     this.cacheDir = options.cacheDir ?? defaultCacheDir
     this.readOnly = options.readOnly ?? false
+    this.modelConfig = resolveModelConfig(options.model)
     if (options.embeddingProvider) {
       this.customProvider = options.embeddingProvider
       this.dimension = options.embeddingProvider.dimension
     } else {
-      this.dimension = defaultDimension
+      this.dimension = this.modelConfig.dimension
     }
     if (options.embeddingCacheSize && options.embeddingCacheSize > 0) {
       this.textEmbeddingCache = new LRUCache(options.embeddingCacheSize)
@@ -261,12 +268,12 @@ export class EmbeddingEngine extends EventEmitter {
     // Step 2: Download/resolve the model file
     let modelPath: string
     try {
-      modelPath = await resolveModelFile(defaultModelUri, this.cacheDir)
+      modelPath = await resolveModelFile(this.modelConfig.uri, this.cacheDir)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       throw new ModelInitializationError(
         `Failed to download or locate the embedding model.\n\n` +
-          `Model: ${defaultModelUri}\n` +
+          `Model: ${this.modelConfig.uri}\n` +
           `Cache directory: ${this.cacheDir}\n` +
           `Original error: ${message}\n\n` +
           `Troubleshooting:\n` +
@@ -320,7 +327,7 @@ export class EmbeddingEngine extends EventEmitter {
   /**
    * Truncates text to fit within the model's context size
    * Uses the model's tokenizer for accurate token counting
-   * BGE-small supports 512 tokens, we use 500 to leave room for special tokens
+   * The token limit comes from the model config (leaves room for special tokens)
    */
   private truncateToContextSize(text: string): string {
     if (!this.model) {
@@ -329,7 +336,7 @@ export class EmbeddingEngine extends EventEmitter {
       return text.length <= maxChars ? text : text.slice(0, maxChars)
     }
 
-    const maxTokens = 500
+    const maxTokens = this.modelConfig.maxTokens
     const tokens = this.model.tokenize(text)
 
     if (tokens.length <= maxTokens) {
@@ -342,9 +349,9 @@ export class EmbeddingEngine extends EventEmitter {
   }
 
   /**
-   * Generates embedding from text using node-llama-cpp with bge-small-en-v1.5 model
+   * Generates embedding from text using the configured embedding model
    * @param text - Text to embed
-   * @returns 384-dimensional embedding vector (normalized)
+   * @returns Embedding vector (normalized) with the model's dimension
    */
   async generateEmbedding(text: string): Promise<number[]> {
     const embedding = await this.generateEmbeddingFloat32(text)

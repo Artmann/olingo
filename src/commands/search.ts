@@ -1,6 +1,6 @@
 import { command } from 'cleye'
 import { EmbeddingEngine } from '../engine'
-import { sharedFlags, searchFlags } from './flags'
+import { sharedFlags, searchFlags, modelFromFlag } from './flags'
 
 export const search = command(
   {
@@ -15,13 +15,15 @@ export const search = command(
       examples: [
         'olingo search "artificial intelligence"',
         'olingo search -l 5 -m 0.7 "machine learning"',
-        'olingo search -s ./my-db.raptor "find similar docs"'
+        'olingo search -s ./my-db.raptor "find similar docs"',
+        'olingo search --model bge-m3 "flerspråkig sökning"'
       ]
     }
   },
   async (argv) => {
     const engine = new EmbeddingEngine({
-      storePath: argv.flags.storePath
+      storePath: argv.flags.storePath,
+      model: modelFromFlag(argv.flags.model)
     })
 
     try {

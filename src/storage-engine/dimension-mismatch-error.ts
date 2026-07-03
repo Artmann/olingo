@@ -7,7 +7,9 @@ export class DimensionMismatchError extends Error {
     public readonly actualDimension: number
   ) {
     super(
-      `Embedding dimension mismatch: expected ${expectedDimension}, got ${actualDimension}`
+      `Embedding dimension mismatch: expected ${expectedDimension}, got ${actualDimension}. ` +
+        `This usually means the database was created with a different embedding model. ` +
+        `Open it with the same model, or re-embed the data into a new store.`
     )
     this.name = 'DimensionMismatchError'
   }
